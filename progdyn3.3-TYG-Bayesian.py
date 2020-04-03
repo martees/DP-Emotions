@@ -36,35 +36,45 @@ def mu(f):
 
 ## Reproductive value of an animal performing intensity f in state (x,E)
 #W returns a s+1 * N+1 * 2 table, having applied the H calculation on all the table at once
-def W(P,f):
+def W(p,f):
 
     #Posterior estimates
-    psuccess=nextp[P,f,1]
-    pfailure=nextp[P,f,0]
+    psuccess=nextp(p,f,1)
+    pfailure=nextp(p,f,0)
+
     #Column permutations associated to these estimates
-    rows, column_indices = np.ogrid[:V.shape[0], :V.shape[1]] #we start with the V[.][psuccess/failure] part
-    VSuccess = V[rows, np.reshape(psuccess, (1, N+1))] #changes the colu;ns to those given by psuccess
-    VFailure = V[rows, np.reshape(pfailure, (1, N+1))]
+    row_indices, column_indices = np.ogrid[:V.shape[0], :V.shape[1]] #we start with the V[.][psuccess/failure] part
+    VSuccess = V[row_indices, psuccess] #changes the columns to those given by psuccess
+    VFailure = V[row_indices, pfailure]
 
     #T1=V[max(x-m,0)][p]   (for both E=good/0 and E=bad/1)
     T1 = np.roll(VFailure, m, axis=0) #we shift all the lines m times downwards
     T1[:m, :, :] = np.resize( np.tile(T1[m], m) , (m, N+1, 2)) #we fill in the gap on the top with m times the same line
+    T1_Good = T1[:, :, 0]
+    T1_Bad = T1[:, :, 1]
+
 
     #T2=V[min(x+food1-m,s)][psuccess] (for both E=good/0 and E=bad/1)
     #x+food1-m =x - (m-food1)
     T2 = np.roll(VSuccess, m-food1, axis=0) #we shift all the lines food1-m times upwards
     T2[-(food1 - m):, :, :] = np.resize( np.tile(T2[-(food1 - m)-1], food1 - m) , (food1 - m, N+1, 2)) #we fill in the gap on down with food1-m times the same line
+    T2_Good = T2[:, :, 0]
+    T2_Bad = T2[:, :, 1]
 
     #T3=V[min(x+food2-m,s)][psuccess] (for both E=good/0 and E=bad/1)
     T3 = np.roll(VSuccess, m-food2, axis=0)#we shift all the lines food2-m times upwards
     T3[-(food2 - m):, :, :] = np.resize( np.tile(T3[-(food2 - m)-1], food2 - m) , (food2 - m, N+1, 2)) #we fill in the gap on down with food2-m times the same line
+    T3_Good = T3[:, :, 0]
+    T3_Bad = T3[:, :, 1]
 
     #MAIN CALCULATION
+    H_Good = (1-mu(f))*((1-food_G*f)*((1-transition_G)*T1_Good + transition_G*T1_Bad)+(food_G*f)*((1-transition_G)*(0.5*T2_Good+0.5*T3_Good)+transition_G*(0.5*T2_Bad+0.5*T3_Bad)))
+    H_Bad = (1-mu(f))*((1-food_B*f)*((1-transition_B)*T1_Bad + transition_B*T1_Good)+(food_B*f)*((1-transition_B)*(0.5*T2_Bad+0.5*T3_Bad)+transition_B*(0.5*T2_Good+0.5*T3_Good)))
+
+    #storage
     H = np.zeros((s+1,N+1, 2))
-    #case where E = good (E = 0, not E = 1)
-    H[:,:,0] = (1-mu(f))*((1-food_G*f)*((1-transition_G)*T1[:,:,0] + transition_G*T1[:,:,1])+(food_G*f)*((1-transition_G)*(0.5*T2[:,:,0]+0.5*T3[:,:,0])+transition_G*(0.5*T2[:,:,1]+0.5*T3[:,:,1])))
-    #case where E = bad (E = 1, not E = 0)
-    H[:,:,1] = (1-mu(f))*((1-food_B*f)*((1-transition_B)*T1[:,:,1] + transition_B*T1[:,:,0])+(food_B*f)*((1-transition_B)*(0.5*T2[:,:,1]+0.5*T3[:,:,1])+transition_B*(0.5*T2[:,:,0]+0.5*T3[:,:,0])))
+    H[:,:,0] = H_Good
+    H[:,:,1] = H_Bad
 
     return(H)
 
@@ -78,18 +88,30 @@ def T():
     for f in flist:
 
         #MAIN CALCULATION: reproductive value we want to maximize in each cell
+        p= updated_prior
         H = W(p,f)
         t = (p/N)*H[:,:,0]+(1-(p/N))*H[:,:,1] #0 for good, 1 for bad
 
         #updating the maximum tables
-        comp = (t>tmaxi) #in each cell, if t > maxi (ie if we should update the max) we have a 1, otherwise we have a 0
-        tmaxi = np.maximum(tmaxi, comp*t)  #comp*t : the cells that shouldn't be updated are 0, the others were just multtiplied by one
-        Hmaxi[:,:,0] = np.maximum(Hmaxi[:,:,0], comp*H[:,:,0]) #slicing, might take long
-        Hmaxi[:,:,1] = np.maximum(Hmaxi[:,:,1], comp*H[:,:,1])
-        fmaxi = np.maximum(fmaxi, comp * f)  #comp*f : les cases qui ne doivent pas être update sont à zéro les autres valent f
+        #slow version
+        # for x in range(s+1):
+        #     for p in range(N+1):
+        #         if t[x, p] > tmaxi[x, p]:
+        #             tmaxi[x, p] = t[x, p]
+        #             Hmaxi[x, p, 0] = H[x, p, 0]
+        #             Hmaxi[x, p, 1] = H[x, p, 1]
+        #             fmaxi[x, p] = f
+        #fast and furious version
+        new = (t>tmaxi) #in each cell, if t > maxi (ie if we should update the max) we have a 1, otherwise we have a 0
+        old = 1-new
+        #this means that new multiplied by a table will select all the values we want to replace, and old multiplied by a table will select all the values we want to keep (the non selected values are put to zero)
+        tmaxi = tmaxi*old + t*new  #comp*t : the cells that shouldn't be updated are 0, the others were just multiplied by one
+        Hmaxi[:,:,0] = Hmaxi[:,:,0]*old + H[:,:,0]*new
+        Hmaxi[:,:,1] = Hmaxi[:,:,1]*old + H[:,:,1]*new
+        fmaxi = fmaxi*old+ f * new  #fmaxi*old keeps the old values of f that we do not want to update, and f*new updates the new values
 
     #if reserves are empty, death
-    #on met à zéro la première ligne de fmaxi (cas x = 0)
+    #we nullify the first line of fmaxi (cas x = 0)
     Hmaxi[0] = 0
 
     return(Hmaxi, fmaxi)
@@ -106,29 +128,21 @@ updated_prior[1: -1] = p_temp
 updated_prior = updated_prior.astype(int)
 
 #Posterior estimate permutation (depends only on p and f, so we also compute it only once)
-#create a table giving next estimate for each (p,f,result): p=LINE, f=COL, result=TUPLE
-#function that fills in the table
-def nextpfill(p,f,result):
+#we apply it to a table of all possible values of p to obtain next estimate for each
+def nextp(P,f,result):
     S1 = food_G*f
     S2 = food_B*f
     R1 = 1-S1
     R2 = 1-S2
     if result==1: #if success
         if f==0: #if division by zero occurs, no update (no info)
-            newp = p
+            return P
         else:
-            newp = (S1*p)/( S2*(N-p)+S1*p )
+            newP = (S1*P)/( S2*(N-P)+S1*P )
     if result==0: #if failure
-        newp = (R1*p)/( R2*(N-p)+R1*p )
-    return(np.floor(N*newp).astype(int))
+        newP = (R1*P)/( R2*(N-P)+R1*P )
+    return(np.floor(N*newP).astype(int))
 
-nextp = np.zeros((N,M,2))
-for p in range(N):
-    for f in flist:
-        nextp[p,int(M*f),1]=nextpfill(p,f,1)
-        nextp[p,int(M*f),0]=nextpfill(p,f,0)
-
-nextp = nextp.astype(int)
 
 ## Find optimal strategy as the limit of a sequence of functions
 #Here, functions are represented as tables associating a tuple (x,p) to the reproductive value associated with the optimal foraging intensity (relative probability of survival for any long period under a optimal strategy).
