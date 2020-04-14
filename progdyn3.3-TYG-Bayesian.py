@@ -25,14 +25,14 @@ transition_B=0.01
 #Number of possible values for estimate p that E=G
 N = 100
 #Number and range of possible values for foraging intensity f
-M=1000
+M=100
 flist = np.arange(0,1,1/M)
 
 
 ##Risk of predation of an animal foraging at level f in state x
 def mu(f):
     X = np.arange(0, s+1, 1) #x lies between 0 and s
-    return(f*d*(0.5+(X/s)))
+    return((f**c)*d*(0.5+(X/s)))
 
 ## Reproductive value of an animal performing intensity f in state (x,E)
 #W returns a s+1 * N+1 * 2 table, having applied the H calculation on all the table at once
@@ -42,10 +42,15 @@ def W(p,f):
     psuccess=nextp(p,f,1)
     pfailure=nextp(p,f,0)
 
+    #In order to switch from a time t's estimate to the time t+1, we operate on the whole (x,p,E) table, by swapping the columns according to the nextp vector - a column p's survival expectations are now a column nextp's.
     #Column permutations associated to these estimates
-    row_indices, column_indices = np.ogrid[:V.shape[0], :V.shape[1]] #we start with the V[.][psuccess/failure] part
-    VSuccess = V[row_indices, psuccess] #changes the columns to those given by psuccess
-    VFailure = V[row_indices, pfailure]
+    row_indices, column_indices = np.ogrid[:V.shape[0], :V.shape[1]] #getting the indices
+    VSuccess = V[row_indices, psuccess] #changing the columns to those given by psuccess
+    VFailure = V[row_indices, pfailure] #same for failure
+
+
+    #The main calculation then requires us to operate on the lines x, because actions have consequences on reserves. This is done similarly to before, by swapping each line with the appropriate other line. However, since this swapping is done with a constant offset, we perform it with the np.roll function.
+    #The min and max part is then computed by trimming the adequate part of the matrix and replacing it with a repetition of the last acceptable line. Ex: when having max(x-m,0) as an argument, all lines are shifted downwards, and the last lines end up being on the top. We cut this part off and replace it with m times the 0th line (which is now the mth line).
 
     #T1=V[max(x-m,0)][p]   (for both E=good/0 and E=bad/1)
     T1 = np.roll(VFailure, m, axis=0) #we shift all the lines m times downwards
@@ -80,11 +85,11 @@ def W(p,f):
 
 ## Dynamic programming operator
 def T():
-    tmaxi=np.zeros((s+1, N+1)) #table that will keep track of the max t encountered for each cell
-    Hmaxi=np.zeros((s+1, N+1, 2))  #table that will keep track of the correspnding H
-    fmaxi=np.zeros((s+1, N+1)) #table that will keep track of the corresponding f
+    tmaxi=np.zeros((s+1, N+1)) #table that keeps track of the max t encountered for each cell
+    Hmaxi=np.zeros((s+1, N+1, 2))  #table that keeps track of the correspnding H
+    fmaxi=np.zeros((s+1, N+1)) #table that keeps track of the corresponding f
 
-    #the loop that looks for the argmax (the maximum t and the associated f)
+    #Loop that looks for the argmax (the maximum t and the associated f)
     for f in flist:
 
         #MAIN CALCULATION: reproductive value we want to maximize in each cell
@@ -102,16 +107,18 @@ def T():
         #             Hmaxi[x, p, 1] = H[x, p, 1]
         #             fmaxi[x, p] = f
         #fast and furious version
+
+        #We create two tables: old and new. 'New' multiplied by a table will "select" (keep them, while all other values are put to 0) all the values we want to replace, and 'old' multiplied by a table will select all the values we want to keep.
         new = (t>tmaxi) #in each cell, if t > maxi (ie if we should update the max) we have a 1, otherwise we have a 0
         old = 1-new
-        #this means that new multiplied by a table will select all the values we want to replace, and old multiplied by a table will select all the values we want to keep (the non selected values are put to zero)
-        tmaxi = tmaxi*old + t*new  #comp*t : the cells that shouldn't be updated are 0, the others were just multiplied by one
+        tmaxi = tmaxi*old + t*new  #tmaxi*old = the values that should be kept, and t*new = the values that should be updated. The cells that shouldn't be updated are now 0, and the others were just multiplied by one
+        #same operation for both E=G and E=B on H, and for f
         Hmaxi[:,:,0] = Hmaxi[:,:,0]*old + H[:,:,0]*new
         Hmaxi[:,:,1] = Hmaxi[:,:,1]*old + H[:,:,1]*new
         fmaxi = fmaxi*old+ f * new  #fmaxi*old keeps the old values of f that we do not want to update, and f*new updates the new values
 
     #if reserves are empty, death
-    #we nullify the first line of fmaxi (cas x = 0)
+    #we nullify the first line of fmaxi (case x = 0)
     Hmaxi[0] = 0
 
     return(Hmaxi, fmaxi)
@@ -119,16 +126,15 @@ def T():
 
 ## Next estimate p: Bayesian.
 
-#Updated prior permutation (depends only on p, so we only have to compute it once)
+#Updated prior permutation (depends only on p, so we only have to compute it once). Used in main loop. All p's are consistently updated to an updated p at the beginning of each loop, and it corresponds to swapping a given column p with the column associated with the updated p.
 p_temp = np.arange(1, N, 1).astype(int)
-p_temp = np.floor((transition_B/(N-p_temp) + (1-transition_G)/p_temp)).astype(int)
+p_temp = np.floor((transition_B*(N-p_temp) + (1-transition_G)*p_temp)).astype(int)
 updated_prior = np.zeros(N+1)
 updated_prior[0] = transition_B*N
 updated_prior[1: -1] = p_temp
 updated_prior = updated_prior.astype(int)
 
-#Posterior estimate permutation (depends only on p and f, so we also compute it only once)
-#we apply it to a table of all possible values of p to obtain next estimate for each
+#Posterior estimate permutation (depends only on p and f, so we could also compute it only once, could be worth some work)
 def nextp(P,f,result):
     S1 = food_G*f
     S2 = food_B*f
@@ -158,9 +164,9 @@ U[0] = 0
 #Convergence parameter (to compare to maximum acceptable difference between V and U)
 maxdiff=100
 
+j=0
 #MAIN LOOP
-for j in range(100):
-#while maxdiff>=0.001: #until the sequence converges
+while maxdiff>=0.001: #until the sequence converges
     V=deepcopy(U) #previous U is stored in V
     U = np.zeros( (s+1,N+1, 2) )
 
@@ -187,10 +193,10 @@ for j in range(100):
     #Process tracking (2)
     print(", iteration took ", process_time()-t, "s, maxdiff is : ", maxdiff, sep = '')
 
-    plt.imshow(F) #plotting foraging intensity matrix F
-    #plt.imshow(F, interpolation='gaussian') #gaussian smoothing
-    plt.gca().invert_yaxis()
-    plt.pause(0.1)
+plt.imshow(F) #plotting foraging intensity matrix F
+#plt.imshow(F, interpolation='gaussian') #gaussian smoothing
+plt.gca().invert_yaxis()
+plt.pause(0.1)
 
 plt.colorbar(aspect='auto')
 plt.show()
