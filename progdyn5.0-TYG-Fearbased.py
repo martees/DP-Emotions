@@ -12,11 +12,11 @@ true=0.1 #density of true predation cues left by predators
 noise=0.01 #density of false predation cues in any environment
 
 #Safe environment
-gamma_S=0 #density of predators
+gamma_S=0.5 #density of predators
 transition_S=0.01
 
 #Risky environment
-gamma_R=0.1 #density of predators
+gamma_R=0.9 #density of predators
 transition_R=0.01
 
 #Survival function
@@ -42,14 +42,21 @@ def Plot():
     P=np.arange(N).astype(float)
     WR=np.arange(N).astype(float)
     WS=np.arange(N).astype(float)
+    V=[1,1]
+    FR=np.arange(N).astype(float)
+    FS=np.arange(N).astype(float)
     for n in range(N):
         i=(n*max)/N
         P[n] = Psur(i)
-        WS[n] = W(i,'S')
-        WR[n] = W(i,'R')
+        WS[n] = W(i,'S')/100
+        WR[n] = W(i,'R')/100
+        FR[n]= F(i,'S')
+        FS[n]= F(i,'R')
     plt.plot(P,label='P')
-    plt.plot(WS,label='S')
-    plt.plot(WR,label='R')
+    plt.plot(WS,label='WS')
+    plt.plot(WR,label='WR')
+    plt.plot(FR, label='FR')
+    plt.plot(FS, label='FS')
     plt.legend()
     plt.show()
 
@@ -66,7 +73,7 @@ def NumericOptimal():
     else:
         A[0]= (-gamma_S*lambertw(math.exp(-m*b+b-(1/gamma_S))/gamma_S)+b*gamma_S-1)/(b*gamma_S)
         A[1]= (-gamma_R*lambertw(math.exp(-m*b+b-(1/gamma_R))/gamma_R)+b*gamma_R-1)/(b*gamma_R)
-    return(A)
+    print(A)
 
 
 ##Perfect Information
@@ -115,9 +122,9 @@ def PerfectInfo():
         newV = np.zeros(2) #current newV is initialized
 
         #Process tracking (1)
-        j += 1 #for nice printing purposes
-        t =  process_time()
-        print("Iteration ", j, ", start time : ", t, sep='', end='')
+    #    j += 1 #for nice printing purposes
+    #    t =  process_time()
+    #    print("Iteration ", j, ", start time : ", t, sep='', end='')
 
 
         #main calculation
@@ -132,8 +139,8 @@ def PerfectInfo():
         #recompute maximum difference btw V and U for convergence
         maxdiff= np.amax(np.abs(newV - V))
 
-        #Process tracking (2)
-        print(", iteration took ", process_time()-t, "s, maxdiff is : ", maxdiff, sep = '')
+    #    #Process tracking (2)
+    #    print(", iteration took ", process_time()-t, "s, maxdiff is : ", maxdiff, sep = '')
 
     print(newV,a_max)
 
