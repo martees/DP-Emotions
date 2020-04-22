@@ -12,7 +12,7 @@ true=0.1 #density of true predation cues left by predators
 noise=0.01 #density of false predation cues in any environment
 
 #Safe environment
-gamma_S=0.5 #density of predators
+gamma_S=0.1 #density of predators
 transition_S=0.01
 
 #Risky environment
@@ -25,13 +25,6 @@ b=20 #steepness of growth
 def Psur(a):
     return( 1/(1+math.exp(-b*(a-m))) )
 
-#Fitness funtion
-def W(a,E):
-    if E=='S':
-        return((1-a)* (Psur(a)**gamma_S/transition_S))
-    if E=='R':
-        return((1-a)* (Psur(a)**gamma_R/transition_R))
-
 #Possible values for a
 alist=np.arange(0,1,0.01)
 
@@ -40,23 +33,24 @@ def Plot():
     max=1 #upper limit
     N=100 #number of values
     P=np.arange(N).astype(float)
-    WR=np.arange(N).astype(float)
-    WS=np.arange(N).astype(float)
+    HR=np.arange(N).astype(float)
+    HS=np.arange(N).astype(float)
     V=[1,1]
     FR=np.arange(N).astype(float)
     FS=np.arange(N).astype(float)
     for n in range(N):
         i=(n*max)/N
         P[n] = Psur(i)
-        WS[n] = W(i,'S')/100
-        WR[n] = W(i,'R')/100
-        FR[n]= F(i,'S')
-        FS[n]= F(i,'R')
+        V=[1,0.01]
+        HS[n] = H(i,V,'S')
+        HR[n] = H(i,V,'R')
+        FR[n]= F(i,'R')
+        FS[n]= F(i,'S')
     plt.plot(P,label='P')
-    plt.plot(WS,label='WS')
-    plt.plot(WR,label='WR')
-    plt.plot(FR, label='FR')
-    plt.plot(FS, label='FS')
+    plt.plot(FS,label='FS')
+    plt.plot(FR,label='FR')
+    plt.plot(HR, label='HR')
+    plt.plot(HS, label='HS')
     plt.legend()
     plt.show()
 
