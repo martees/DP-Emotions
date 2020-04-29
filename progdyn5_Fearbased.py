@@ -75,7 +75,7 @@ def PerfectInfo():
 ##Bayesian
 #p is the probability that E=S according to the animal. We want it to be updated in a bayesian way depending on whether the agent encounters a predator. There are two types of updates: the prior updates, which takes into account potential transitions happening during the actionm and the posterior updates, which take into account the encounters of the agent to increase or decrease p.
 
-#newVpdated prior permutation (depends only on p, so we only have to compute it once). Used in main loop. All p's are consistently updated to an updated p at the beginning of each loop, and it corresponds to swapping a given column p with the column associated with the updated p.
+#Updated prior permutation (depends only on p, so we only have to compute it once). Used in main loop. All p's are consistently updated to an updated p at the beginning of each loop, and it corresponds to swapping a given column p with the column associated with the updated p.
 p_temp = np.arange(1, N, 1).astype(int)
 p_temp = np.floor((transition_R*(N-p_temp) + (1-transition_S)*p_temp)).astype(int)
 updated_prior = np.zeros(N+1)
@@ -86,14 +86,14 @@ updated_prior = updated_prior.astype(int)
 #Posterior estimate permutation (depends only on p and a, so we could also compute it only once, could be worth some work)
 def nextp(p,result):
     if result==1: #if encounter
-            newp = (gamma_S*p)/( gamma_S*p + gamma_R*(N-p) )
+        newp = (gamma_S*p) / ( gamma_S*p + gamma_R*(N-p) )
     if result==0: #if no encounter
-        newp = ((1-gamma_S)*p)/( (1-gamma_S)*p+((1-gamma_R)*(N-p)))
+        newp = ((1-gamma_S)*p)/( (1-gamma_S)*p + ((1-gamma_R)*(N-p)))
     return(np.floor(N*newp).astype(int))
 
 
 #Long-term reproductive value of an animal performing level a in environment E
-#W returns a tuple with the optimal a for the given estimate p that conditions are safe, for both safe (H[0]) and risky (H[1]) environments
+#W returns a tuple with the reproductive value associated with level a for the given estimate p that conditions are safe, for both safe (H[0]) and risky (H[1]) environments
 def W(p,a,V):
     #Posterior estimates
     p_encounter=nextp(p,1)
@@ -121,7 +121,7 @@ def T2(V):
     for a in alist:
 
         #MAIN CALCULATION: put the reproductive value we want to maximize in each cell
-        for p in range(N):
+        for p in range(N+1):
             H[p] = W(p,a,V)
             t[p] = (p/N)*H[p][0]+(1-(p/N))*H[p][1] #0 for good, 1 for bad
 
