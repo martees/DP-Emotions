@@ -5,68 +5,21 @@ from matplotlib import cm
 from math import *
 from time import process_time
 from scipy.special import lambertw
-import progdyn5Annex as anx
-
-##Parameters
-def Param(): #in a function so that it is synchronized with progdyn5Annex
-    #General
-    true=0.1 #density of true predation cues left by predators
-    noise=0.01 #density of false predation cues in any environment
-    c=8
-
-    #Safe environment
-    gamma_S=0 #density of predators
-    transition_S=0.01
-
-    #Risky environment
-    gamma_R=0.5 #density of predators
-    transition_R=0.01
-
-    #Survival function
-    m=0.5 #inflexion point
-    b=10 #steepness of growth
-    def Psur(a):
-        return( 1/(1+exp(-b*(a-m))) )
-
-    #Possible values for a
-    alist=np.arange(0,1,0.01)
-
-Param()
-
-##Numerical solution of the corresponding Nonacs model
-#Function that returns the fitness-maximizing a* for E=S and E=R
-#It is numerically computable by finding the maximum of the fitness function (reached at the derivative's root)
-#Note: for now we consider that either the safe envt has a 0 predator density (in which case the optimal vigilance level is 0), either both predator densities are non-zero.
-
-A=[0,0]
-def NumericOptimal():
-    if gamma_S == 0:
-        A[0]=0
-        A[1]= (-gamma_R*lambertw(exp(-m*b+b-(1/gamma_R))/gamma_R)+b*gamma_R-1)/(b*gamma_R)
-    else:
-        A[0]= (-gamma_S*lambertw(exp(-m*b+b-(1/gamma_S))/gamma_S)+b*gamma_S-1)/(b*gamma_S)
-        A[1]= (-gamma_R*lambertw(exp(-m*b+b-(1/gamma_R))/gamma_R)+b*gamma_R-1)/(b*gamma_R)
-    print(A)
-
+from progdyn5_Annex import *
 
 ##Perfect Information
-def G(x):
-    return( 1/(1+exp(-20*(x-0.2))) )
 
-#fitness obtained through a given time step from performing a in environment E
+#Total fitness obtained through a given time step from performing a in environment E
 def F(a,E):
-
     if E=='S':
         gamma = gamma_S
-
     if E=='R':
         gamma = gamma_R
-
     return( G(1-a) * ( gamma * Psur(a) + (1-gamma)))
 
 
-# Reproductive value of an animal performing intensity a in environment E
-def H(a,V,E):
+#Long-term reproductive value of an animal performing intensity a in environment E
+def H1(a,V,E):
     #adjust parameters depending on the value of E
     if E=='S':
         h = ((1-transition_S)*F(a,'S')*V[0])+(transition_S*F(a,'R')*V[1])
@@ -74,21 +27,13 @@ def H(a,V,E):
         h = ((1-transition_R)*F(a,'R')*V[1])+(transition_R*F(a,'S')*V[0])
     return(h)
 
-def newH(x,a,V,E):
-    #adjust parameters depending on the value of E
-    if E=='S':
-        h = (1-a)*((1-transition_S)* V[1] + transition_S *V[1])**10
-    else:
-        h = (1-a)*((1-transition_R)* V[1] + transition_R*V[0])**10
-    return(h)
-
 
 # Dynamic programming operator (finds the a that maximizes V for each E, and fills up V and A with the corresponding max)
-def T(V,E):
+def T1(V,E):
     maxi=0 #maximum H
     maxa=0 #optimal a
     for a in alist: #for many a's
-        t = H(a,V,E) #calculate the reproductive value if foraging at a in E
+        t = H1(a,V,E) #calculate the reproductive value if foraging at a in E
         if t>maxi: #if a better t is found, update maxima
             maxi=t
             maxa=a
@@ -102,69 +47,109 @@ def PerfectInfo():
     V = [1,1]
     newV = [1,1]
     a_max = [0,0] #maximizing levels of vigilance
-
-    j=0
-    maxdiff=100
+    maxdiff=100 #convergence criterion
     #main loop
     while maxdiff>=0.00001: #until the sequence converges
         V=deepcopy(newV) #previous newV is stored in V
         newV = np.zeros(2) #current newV is initialized
-
-        #Process tracking (1)
-    #    j += 1 #for nice printing purposes
-    #    t =  process_time()
-    #    print("Iteration ", j, ", start time : ", t, sep='', end='')
-
         #main calculation
-        newV[0], a_max[0] = T(V,'S')
-        newV[1], a_max[1] = T(V,'R')
-
+        newV[0], a_max[0] = T1(V,'S')
+        newV[1], a_max[1] = T1(V,'R')
         #Normalization
         maxi = np.amax(newV)
         if maxi != 0:
             newV = newV/maxi
-
-        #recompute maximum difference btw V and U for convergence
+        #recompute maximum difference btw V and newV for convergence
         maxdiff= np.amax(np.abs(newV - V))
-
-    #    #Process tracking (2)
-    #    print(", iteration took ", process_time()-t, "s, maxdiff is : ", maxdiff, sep = '')
-
     print(newV,a_max)
 
 
-#    plt.imshow(a_max) #plotting foraging intensity matrix F
- #   #plt.imshow(F, interpolation='gaussian') #gaussian smoothing
- #   plt.gca().invert_yaxis()
-  #  plt.pause(0.1)
+#   plt.imshow(a_max) #plotting level of antipredator behavior matrix F
+#   plt.gca().invert_yaxis()
+#   plt.pause(0.1)
 #
- #   plt.colorbar(aspect='auto')
-  #  plt.show()
-    #
+#   plt.colorbar(aspect='auto')
+#   plt.show()
 
 
 ##Bayesian
-#p is the probability that E=G according to the animal
+#p is the probability that E=S according to the animal. We want it to be updated in a bayesian way depending on whether the agent encounters a predator. There are two types of updates: the prior updates, which takes into account potential transitions happening during the actionm and the posterior updates, which take into account the encounters of the agent to increase or decrease p.
 
+#newVpdated prior permutation (depends only on p, so we only have to compute it once). Used in main loop. All p's are consistently updated to an updated p at the beginning of each loop, and it corresponds to swapping a given column p with the column associated with the updated p.
+p_temp = np.arange(1, N, 1).astype(int)
+p_temp = np.floor((transition_R*(N-p_temp) + (1-transition_S)*p_temp)).astype(int)
+updated_prior = np.zeros(N+1)
+updated_prior[0] = transition_R*N
+updated_prior[1: -1] = p_temp
+updated_prior = updated_prior.astype(int)
+
+#Posterior estimate permutation (depends only on p and a, so we could also compute it only once, could be worth some work)
+def nextp(p,result):
+    if result==1: #if encounter
+            newp = (gamma_S*p)/( gamma_S*p + gamma_R*(N-p) )
+    if result==0: #if no encounter
+        newp = ((1-gamma_S)*p)/( (1-gamma_S)*p+((1-gamma_R)*(N-p)))
+    return(np.floor(N*newp).astype(int))
+
+
+#Long-term reproductive value of an animal performing level a in environment E
+#W returns a tuple with the optimal a for the given estimate p that conditions are safe, for both safe (H[0]) and risky (H[1]) environments
+def W(p,a,V):
+    #Posterior estimates
+    p_encounter=nextp(p,1)
+    p_no_encounter=nextp(p,0)
+
+    H_Safe = G(a)* ( (1-transition_S)* (gamma_S * Psur(a)* V[p_encounter][0] + (1-gamma_S)*V[p_no_encounter][0] )
+    + transition_S * (gamma_R * Psur(a)* V[p_encounter][1] + (1-gamma_R)*V[p_no_encounter][1]))
+
+    H_Risky = G(a)* ( (1-transition_R)* (gamma_R * Psur(a)* V[p_encounter][1] + (1-gamma_R)*V[p_no_encounter][1] )
+    + transition_R * (gamma_S * Psur(a)* V[p_encounter][0] + (1-gamma_S)*V[p_no_encounter][0]))
+
+    H=np.array([H_Safe,H_Risky])
+    return(H)
+
+
+# Dynamic programming operator
+def T2(V):
+    H=np.zeros((N+1, 2)) #table of H for all p's and E's
+    t=np.zeros((N+1)) #table of t for all p's
+    tmaxi=np.zeros((N+1)) #table that keeps track of the max t encountered for each cell
+    Hmaxi=np.zeros((N+1, 2))  #table that keeps track of the correspnding H
+    amaxi=np.zeros((N+1)) #table that keeps track of the corresponding a
+
+    #Loop that looks for the argmax (the maximum t and the associated a)
+    for a in alist:
+
+        #MAIN CALCULATION: put the reproductive value we want to maximize in each cell
+        for p in range(N):
+            H[p] = W(p,a,V)
+            t[p] = (p/N)*H[p][0]+(1-(p/N))*H[p][1] #0 for good, 1 for bad
+
+        for p in range(N+1):
+            if t[p] > tmaxi[p]:
+                tmaxi[p] = t[p]
+                Hmaxi[p, 0] = H[p, 0]
+                Hmaxi[p, 1] = H[p, 1]
+                amaxi[p] = a
+
+    return(Hmaxi, amaxi)
 
 
 #Find optimal strategy as the limit of a sequence of functions
-#Here, functions are represented as tables associating a tuple (x,p) to the reproductive value associated with the optimal foraging intensity (relative probability of survival for any long period under a optimal strategy).
-
+#Here, functions are represented as tables associating a tuple (x,p) to the reproductive value associated with the optimal level of antipredator behavior (relative probability of survival for any long period under a optimal strategy).
 def Bayesian():
-    #Initial function = associates a foraging intensity of 1 with all possible (x,p) except for (0,p)=0
-    #x=LINE, p=COL, environment=TUPLE (0=good, 1=bad)
-    U = np.zeros( (s+1,N+1, 2) ) +1
-    U[0] = 0
+    #Initial function = associates a level of antipredator behavior a of 1 with all possible p's and E's
+    #a=LINE, environment=TUPLE (0=safe, 1=risky)
+    newV = np.ones((N+1,2))
 
-    #Convergence parameter (to compare to maximum acceptable difference between V and U)
+    #Convergence parameter (to compare to maximum acceptable difference between newV and newV)
     maxdiff=100
 
     j=0
     #MAIN LOOP
     while maxdiff>=0.001: #until the sequence converges
-        V=deepcopy(U) #previous U is stored in V
-        U = np.zeros( (s+1,N+1, 2) )
+        V=deepcopy(newV) #previous newV is stored in V
+        newV = np.zeros( (N+1, 2) )
 
         #Process tracking (1)
         j += 1 #for nice printing purposes
@@ -173,24 +158,25 @@ def Bayesian():
 
         #Application of the updated prior permutation to the p columns
         rows, column_indices = np.ogrid[:V.shape[0], :V.shape[1]]
-        V = V[rows, np.reshape(updated_prior, (1, N+1))]
+        V = V[np.reshape(updated_prior, (N+1,1)), column_indices]
 
-        #MAIN CALCULATION: T
-        U, F = T() #we recompute F each time (useful only on last iteration, could be worth some work)
+        #MAIN CALCULATION: T2
+        newV, A = T2(V) #we recompute A each time (useful only on last iteration, could be worth some work)
 
         #Normalization
-        maxi = np.amax(U)
+        maxi = np.amax(newV)
         if maxi != 0:
-            U = U/maxi
+            newV = newV/maxi
 
-        #recompute maximum difference btw V and U for convergence
-        maxdiff= np.amax(np.abs(U - V))
+        #recompute maximum difference btw V and newV for convergence
+        maxdiff= np.amax(np.abs(newV - V))
 
         #Process tracking (2)
         print(", iteration took ", process_time()-t, "s, maxdiff is : ", maxdiff, sep = '')
 
-    plt.imshow(F) #plotting foraging intensity matrix F
-    #plt.imshow(F, interpolation='gaussian') #gaussian smoothing
+
+    plt.imshow(A) #plotting optimal antipredator behavior matrix A
+    #plt.imshow(A, interpolation='gaussian') #gaussian smoothing
     plt.gca().invert_yaxis()
     plt.pause(0.1)
 
@@ -201,9 +187,33 @@ def Bayesian():
 
 ##Imperative commands
 
-NumericOptimal()
+#Plot(F1) #graphical check: return plot of P and W curves with current parameters
+#NumericOptimal() #numerical solution of the corresponding Nonacs model
+
 PerfectInfo()
-Plot()
+Bayesian()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
