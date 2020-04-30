@@ -74,16 +74,9 @@ def PerfectInfo():
 
 ##Bayesian
 #p is the probability that E=S according to the animal. We want it to be updated in a bayesian way depending on whether the agent encounters a predator. There are two types of updates: the prior updates, which takes into account potential transitions happening during the actionm and the posterior updates, which take into account the encounters of the agent to increase or decrease p.
+#note: for now no prior update
 
-#Updated prior permutation (depends only on p, so we only have to compute it once). Used in main loop. All p's are consistently updated to an updated p at the beginning of each loop, and it corresponds to swapping a given column p with the column associated with the updated p.
-p_temp = np.arange(1, N, 1).astype(int)
-p_temp = np.floor((transition_R*(N-p_temp) + (1-transition_S)*p_temp)).astype(int)
-updated_prior = np.zeros(N+1)
-updated_prior[0] = transition_R*N
-updated_prior[1: -1] = p_temp
-updated_prior = updated_prior.astype(int)
-
-#Posterior estimate permutation (depends only on p and a, so we could also compute it only once, could be worth some work)
+#Posterior estimate permutation (depends only on p, so we could also compute it only once, could be worth some work)
 def nextp(p,result):
     if result==1: #if encounter
         newp = (gamma_S*p) / ( gamma_S*p + gamma_R*(N-p) )
@@ -99,14 +92,16 @@ def W(p,a,V):
     p_encounter=nextp(p,1)
     p_no_encounter=nextp(p,0)
 
-    H_Safe = G(a)* ( (1-transition_S)* (gamma_S * Psur(a)* V[p_encounter][0] + (1-gamma_S)*V[p_no_encounter][0] )
-    + transition_S * (gamma_R * Psur(a)* V[p_encounter][1] + (1-gamma_R)*V[p_no_encounter][1]))
+    safe_encounter = gamma_S * Psur(a)* V[p_encounter][0]
+    safe_no_encounter = (1-gamma_S)*V[p_no_encounter][0]
+    risky_encounter = gamma_R * Psur(a)* V[p_encounter][1]
+    risky_no_encounter = (1-gamma_R)*V[p_no_encounter][1]
 
-    H_Risky = G(a)* ( (1-transition_R)* (gamma_R * Psur(a)* V[p_encounter][1] + (1-gamma_R)*V[p_no_encounter][1] )
-    + transition_R * (gamma_S * Psur(a)* V[p_encounter][0] + (1-gamma_S)*V[p_no_encounter][0]))
+    H_Safe = G(a)* ( (1-transition_S)*(safe_encounter + safe_no_encounter) + transition_S*(risky_encounter + risky_no_encounter) )
 
-    H=np.array([H_Safe,H_Risky])
-    return(H)
+    H_Risky = G(a)* ( (1-transition_R)* (risky_encounter + risky_no_encounter) + transition_R * (safe_encounter + safe_no_encounter))
+
+    return(np.array([H_Safe,H_Risky]))
 
 
 # Dynamic programming operator
@@ -122,10 +117,9 @@ def T2(V):
 
         #MAIN CALCULATION: put the reproductive value we want to maximize in each cell
         for p in range(N+1):
+#            p = np.floor((transition_R*(N-p) + (1-transition_S)*p)).astype(int) #updated prior
             H[p] = W(p,a,V)
             t[p] = (p/N)*H[p][0]+(1-(p/N))*H[p][1] #0 for good, 1 for bad
-
-        for p in range(N+1):
             if t[p] > tmaxi[p]:
                 tmaxi[p] = t[p]
                 Hmaxi[p, 0] = H[p, 0]
@@ -156,9 +150,9 @@ def Bayesian():
         t =  process_time()
         print("Iteration ", j, ", start time : ", t, sep='', end='')
 
-        #Application of the updated prior permutation to the p columns
-        rows, column_indices = np.ogrid[:V.shape[0], :V.shape[1]]
-        V = V[np.reshape(updated_prior, (N+1,1)), column_indices]
+#        #Application of the updated prior permutation to the p columns
+#        rows, column_indices = np.ogrid[:V.shape[0], :V.shape[1]]
+#        V = V[np.reshape(updated_prior, (N+1,1)), column_indices]
 
         #MAIN CALCULATION: T2
         newV, A = T2(V) #we recompute A each time (useful only on last iteration, could be worth some work)
@@ -173,16 +167,9 @@ def Bayesian():
 
         #Process tracking (2)
         print(", iteration took ", process_time()-t, "s, maxdiff is : ", maxdiff, sep = '')
-
-
-    plt.imshow(A) #plotting optimal antipredator behavior matrix A
-    #plt.imshow(A, interpolation='gaussian') #gaussian smoothing
-    plt.gca().invert_yaxis()
-    plt.pause(0.1)
-
-    plt.colorbar(aspect='auto')
-    plt.show()
-
+#        if j%10==0:
+#            print(V)
+    return(A, V)
 
 
 ##Imperative commands
@@ -191,7 +178,7 @@ def Bayesian():
 #NumericOptimal() #numerical solution of the corresponding Nonacs model
 
 PerfectInfo()
-Bayesian()
+A, V = Bayesian()
 
 
 
