@@ -92,14 +92,14 @@ def W(p,a,V):
     p_encounter=nextp(p,1)
     p_no_encounter=nextp(p,0)
 
-    safe_encounter = gamma_S * Psur(a)* V[p_encounter][0]
-    safe_no_encounter = (1-gamma_S)*V[p_no_encounter][0]
-    risky_encounter = gamma_R * Psur(a)* V[p_encounter][1]
-    risky_no_encounter = (1-gamma_R)*V[p_no_encounter][1]
+    safe_encounter = gamma_S * Psur(a) * V[p_encounter][0]
+    safe_no_encounter = (1-gamma_S) * V[p_no_encounter][0]
+    risky_encounter = gamma_R * Psur(a) * V[p_encounter][1]
+    risky_no_encounter = (1-gamma_R) * V[p_no_encounter][1]
 
-    H_Safe = G(a)* ( (1-transition_S)*(safe_encounter + safe_no_encounter) + transition_S*(risky_encounter + risky_no_encounter) )
+    H_Safe = G(1-a)* ( (1-transition_S)*(safe_encounter + safe_no_encounter) + transition_S*(risky_encounter + risky_no_encounter) )
 
-    H_Risky = G(a)* ( (1-transition_R)* (risky_encounter + risky_no_encounter) + transition_R * (safe_encounter + safe_no_encounter))
+    H_Risky = G(1-a)* ( (1-transition_R)* (risky_encounter + risky_no_encounter) + transition_R * (safe_encounter + safe_no_encounter))
 
     return(np.array([H_Safe,H_Risky]))
 
@@ -114,13 +114,11 @@ def T2(V):
 
     #Loop that looks for the argmax (the maximum t and the associated a)
     for a in alist:
-
-        #MAIN CALCULATION: put the reproductive value we want to maximize in each cell
+        #MAIN CALCULATION: put the reproductive value we want to maximize in each cell of t
         for p in range(N+1):
-#            p = np.floor((transition_R*(N-p) + (1-transition_S)*p)).astype(int) #updated prior
             H[p] = W(p,a,V)
             t[p] = (p/N)*H[p][0]+(1-(p/N))*H[p][1] #0 for good, 1 for bad
-            if t[p] > tmaxi[p]:
+            if t[p] > tmaxi[p]:#if the reproductive value associated with (p,a) is > tmax
                 tmaxi[p] = t[p]
                 Hmaxi[p, 0] = H[p, 0]
                 Hmaxi[p, 1] = H[p, 1]
@@ -179,7 +177,8 @@ def Bayesian():
 
 PerfectInfo()
 A, V = Bayesian()
-
+plt.plot(A)
+plt.show()
 
 
 
