@@ -92,10 +92,22 @@ def W(p,a,V):
     p_encounter=nextp(p,1)
     p_no_encounter=nextp(p,0)
 
-    safe_encounter = gamma_S * Psur(a) * V[p_encounter][0]
-    safe_no_encounter = (1-gamma_S) * V[p_no_encounter][0]
-    risky_encounter = gamma_R * Psur(a) * V[p_encounter][1]
-    risky_no_encounter = (1-gamma_R) * V[p_no_encounter][1]
+    safe_encounter1 = gamma_S * Psur(a) * V[p_encounter][0]
+    safe_encounter2 = gamma_S * Psur(a) * V[min(100, p_encounter+1)][0]
+    safe_encounter = safe_encounter1+safe_encounter2
+
+    safe_no_encounter1 = (1-gamma_S) * V[p_no_encounter][0]
+    safe_no_encounter2 = (1-gamma_S) * V[min(100, p_no_encounter+1)][0]
+    safe_no_encounter = safe_no_encounter1 + safe_no_encounter2
+
+    risky_encounter1 = gamma_R * Psur(a) * V[p_encounter][1]
+    risky_encounter2 = gamma_R * Psur(a) * V[min(100, p_encounter+1)][1]
+    risky_encounter = risky_encounter1 + risky_encounter2
+
+    risky_no_encounter1 = (1-gamma_R) * V[p_no_encounter][1]
+    risky_no_encounter2 = (1-gamma_R) * V[min(100, p_no_encounter+1)][1]
+    risky_no_encounter = risky_no_encounter1 + risky_no_encounter2
+
 
     H_Safe = G(1-a)* ( (1-transition_S)*(safe_encounter + safe_no_encounter) + transition_S*(risky_encounter + risky_no_encounter) )
 
