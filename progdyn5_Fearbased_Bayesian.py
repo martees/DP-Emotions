@@ -24,7 +24,7 @@ def nextp2(p,encounter):
         newp = (gamma_S*p) / ( gamma_S*p + gamma_R*(N-p) )
     if encounter==0: #if no encounter
         newp = ((1-gamma_S)*p)/( (1-gamma_S)*p + ((1-gamma_R)*(N-p)))
-    return(np.floor(N*newp).astype(int))
+    return(np.ceil((N*newp)).astype(int))
 
 
 ##Long-term reproductive value of an animal performing level a in environment E
@@ -34,8 +34,8 @@ def W2(a,V):
     p = updated_prior
 
     #Posterior estimates
-    p_encounter=np.reshape(nextp2(p,1), (N+1,1))
-    p_no_encounter=np.reshape(nextp2(p,0), (N+1,1))
+    p_encounter=np.reshape(nextp2(p,1), (-1,1))
+    p_no_encounter=np.reshape(nextp2(p,0), (-1,1))
 
     #Column permutations associated to these estimates
     #In order to switch from a time t's estimate to the time t+1, we operate on the whole (a,E) table, by swapping the rowss according to the nextp vector - **a row p's survival expectations are now a row nextp's**.
@@ -49,11 +49,11 @@ def W2(a,V):
 
     #What we do with stochasticity (for convergence purposes)
         #changing the rows to those given by p_encounter
-    V_Enc_Neg = np.clip(V[p_encounter-1, column_indices], 0 , N)
-    V_Enc_Pos = np.clip(V[p_encounter+1, column_indices], 0, N)
+    V_Enc_Neg = V[np.clip(p_encounter-1, 0, N), column_indices]
+    V_Enc_Pos = V[np.clip(p_encounter+1, 0, N), column_indices]
         #changing the rows to those given by p_no_encounter
-    V_NoEnc_Neg = np.clip(V[p_no_encounter-1, column_indices], 0, N)
-    V_NoEnc_Pos = np.clip(V[p_no_encounter+1, column_indices], 0, N)
+    V_NoEnc_Neg = V[np.clip(p_no_encounter-1, 0, N), column_indices]
+    V_NoEnc_Pos = V[np.clip(p_no_encounter+1, 0, N), column_indices]
 
 
     safe_encounter1 = gamma_S * Psur(a) * V_Enc_Pos[:,0]
@@ -94,7 +94,7 @@ def T2(V):
     for a in alist:
         #MAIN CALCULATION: put the reproductive value we want to maximize in each cell of t
         H = W2(a,V)
-        t = (p_all/N)*H[0]+(1-(p_all/N))*H[1]
+        t = (p_all/N)*H[0]+(1-(p_all/N))*H[1] #we divide the probability p by N because it contains the probability*N for easier indexation reasons
 
         #Simple version [DOES NOT WORK NEEDS CORRECTION]
         #for p in range(N+1):
