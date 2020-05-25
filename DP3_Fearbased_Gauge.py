@@ -13,7 +13,7 @@ exec(open("param.txt").read())
 ##Posterior estimate permutation
 #(depends only on p, so we could also compute it only once, could be worth some work)
 def nextg(P_g,d,c,result):
-    #idea for a bias
+    #Idea for a bias
     #one = np.ones(int(N/2))
     #more = 2*np.ones(int(N/2)+1)
     #c = np.concatenate((one,more),axis=None)
@@ -27,7 +27,7 @@ def nextg(P_g,d,c,result):
 
 ##Long-term reproductive value of an animal performing level a in environment E
 #W returns a tuple with the reproductive value associated with level a for the given estimate p that conditions are safe, for both safe (H[0]) and risky (H[1]) environments
-def W(P_g,a,V,d,c):
+def W(V,P_g,d,c,a):
     #Gauge updates
     g_encounter=np.reshape(nextg(P_g,d,c,1), (-1,1))
     g_no_encounter=np.reshape(nextg(P_g,d,c,0), (-1,1))
@@ -86,7 +86,7 @@ def T(V,P_g,d,c):
     #Loop that looks for the argmax (the maximum t and the associated a)
     for a in alist:
         #MAIN CALCULATION: put the reproductive value we want to maximize in each cell of t
-        H = W(P_g,a,V,d,c)
+        H = W(V,P_g,d,c,a)
         t = (P_g/L)*H[0]+(1-(P_g/L))*H[1] #we divide the gauge by L because it contains the probability*L for easier indexation reasons
 
         #Simple version idea [probably doesn't work due to matrix shape inconsistencies]
@@ -232,10 +232,18 @@ def FindGauge():
 
 
 
-GAUGE = FindGauge()
+#GAUGE = FindGauge()
 
+def Dummy():
+    Pop = np.ones((L+1, 2))/(2*L) #we initialize the population
+    PG = np.ones(L+1)
+    Opt = Gauge(PG,d,c)
+    l = np.reshape(np.arange(L+1), (L+1,1))
+    l = np.concatenate((l,l),axis = -1)
+    V = l/(np.sum(l))
+    t = T(V,PG,d,c)
 
-
+    print(t)
 
 
 
