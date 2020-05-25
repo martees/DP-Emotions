@@ -17,7 +17,7 @@ pip install numpy
 
 ## Global Structure
 The project contains, to this date, five independent programs that are based on different paradigms.  
-**DP1** is based on a small model examplified in the book *Models of Animal Behaviour* by A. Houston and J.M. Mcnamara. 
+**DP1** is based on a small model examplified in the book *Models of Animal Behaviour* by A. Houston and J.M. Mcnamara.   
 **DP2** algorithms are based on the 2018 article *Trust your gut: using physiological states as a source of information is almost as effective as optimal Bayesian learning* by Higginson et al., and correspond to the different approaches presented in this article.  
 **DP3** is a personnal development based on these works. It incorporates fear as an estimation parameter of the safeness of an environment. 
 
@@ -25,7 +25,8 @@ The project contains, to this date, five independent programs that are based on 
 ## Theoretical elements
 ### Dynamic Programming
 The goal of this project is to model an agent's optimal behavior in a dynamic environment. Dynamic programming is an algorithmic method that allows us to numerically solve such behavior in a polynomial time, to the one condition that each expression at a given timestep can be expressed based on the previous timestep's values.  
-In order to achieve this, a function V is introduced: V is a function of the animal's state and its environment, and represents a relative probability of survival from this state on, provided that through the next steps the agent's strategy is optimal. In all of the algorithms, one of the main loops' purpose is to perform backward optimization to compute the optimal strategy based on a given V, until V converges.    
+In order to achieve this, a function V is introduced: V is a function of the animal's state and its environment, and represents a relative probability of survival from this state on, provided that through the next steps the agent's strategy is optimal. In all of the algorithms, one of the main loops' purpose is to perform backward optimization to compute the optimal strategy based on a given V, until V converges.  
+In Bayesian and Reserve/Gauge based algorithms, another iteration level is added, because the optimal strategies depend on estimates that themselves depend on the strategy. We thus add two iteration levels, performing a backward optimization to find out optimal strategies based on the current estimate, and then a forward optimization to evaluate long-term survival of an animal following the obtained strategy. This forward cycle yields new estimate values that allow us to restart the cycle, until convergence is reached.  
 
 ### DP1: Day in Winter
 The animal has to choose between a safe option u1 and a risky one u2, and optimal one-day strategies are solved.   
@@ -42,20 +43,15 @@ The environment can be either safe or risky (differing in predator encounter pro
 The agent can choose its level of antipredator behavior. This level yields a certain amount of protection against predators, and a certain amount of accumulated fitness (both of these pay-offs are sygmoidal).
 - PerfectInfo is the same as the Trust Your Guts one.
 - Bayesian estimates are based on predator encounters instead of food items found, since the agents' reserve levels are not taken into account in this model.
-- *in development* 
+- *in development* In the Gauge paradigm, the animal accumulates a certain quantity of stress/anxiety about the potential presence of predators. This gauge defines the animal's state, and is influenced by predator encounters.
 
 ## In Practice
 
 ### DP3 files
-Description of progdyn5 files: 
-- a _Parameters_ script, that should be ran before anything else, in order to create the param.txt file used in other modules. It contains a Set function, that allows changing any parameter in the file, at any time.
-- three scripts corresponding to the 
-- Contains a _Main_ script, that runs tests using the previous functions.  
-
-```
-Give an example
-```
-
+The project contains five files: 
+- _Parameters_ script, that should be ran before anything else, in order to create the param.txt file used in other modules. It contains a Set function, that allows changing any parameter in the file, at any time.
+- _PerfectInfo_, _Bayesian_ and _Gauge_ scripts corresponding to the three information paradigms for the agents.
+- _Main_ script, that runs various tests and simulation based on those three scripts.
 
 ## Built With
 
