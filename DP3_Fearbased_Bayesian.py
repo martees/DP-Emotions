@@ -18,7 +18,7 @@ updated_prior = np.floor(transition_R*(N-p_all) + (1-transition_S)*p_all).astype
 
 ##Posterior estimate permutation
 #(depends only on p, so we could also compute it only once, could be worth some work)
-def nextp2(p,encounter):
+def nextp(p,encounter):
     "Takes in a list of p's and an event and returns the updated p list."
     if encounter==1: #if encounter
         newp = (gamma_S*p) / ( gamma_S*p + gamma_R*(N-p) )
@@ -34,8 +34,8 @@ def W2(a,V):
     p = updated_prior
 
     #Posterior estimates
-    p_encounter=np.reshape(nextp2(p,1), (-1,1))
-    p_no_encounter=np.reshape(nextp2(p,0), (-1,1))
+    p_encounter=np.reshape(nextp(p,1), (-1,1))
+    p_no_encounter=np.reshape(nextp(p,0), (-1,1))
 
     #Column permutations associated to these estimates
     #In order to switch from a time t's estimate to the time t+1, we operate on the whole (a,E) table, by swapping the rowss according to the nextp vector - **a row p's survival expectations are now a row nextp's**.
