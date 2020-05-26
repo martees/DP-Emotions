@@ -11,12 +11,12 @@ import seaborn as sns
 import pandas as pd
 from matplotlib.patches import Patch
 
-from progdyn5_Parameters import *
+from DP3_Parameters import *
 Create("param.txt")
 
-from progdyn5_Fearbased_PerfectInfo import *
-from progdyn5_Fearbased_Bayesian import *
-from progdyn5_Fearbased_Gauge import *
+import DP3_Fearbased_PerfectInfo as pi
+import DP3_Fearbased_Bayesian as bay
+import DP3_Fearbased_Gauge as gauge
 
 #Executing the parameter file
 exec(open("param.txt").read())
@@ -42,9 +42,12 @@ def TimeEffect():
     stability = np.zeros((n,2))
     axis=np.zeros((n,2))
     for t in range(1,n):
+        #both transition times are set to be the same
         Set("param.txt","transition_S",str(t*step))
         Set("param.txt","transition_R",str(t*step))
-        stability[t][0],stability[t][1] = PerfectInfo()
+        #fill the table
+        stability[t][0],stability[t][1] = pi.PerfectInfo()
+        #for a nicer plot
         axis[t]=[t*step,t*step]
     plt.plot(axis[1:],stability[1:])
     plt.xlabel('transition probability')
@@ -65,18 +68,14 @@ def TimeEffectMatrix():
     stability = np.zeros((n,n,2))
     axis=np.zeros((n,2))
     for t1 in range(1,n):
-        Set("param.txt","transition_S",str(t1*step))
+        Set("param.txt","transition_S",str(t1*step)) #setting the safe transition
         for t2 in range(1,n):
-            Set("param.txt","transition_R",str(t2*step))
-            stability[t1,t2,0],stability[t1,t2,1] = PerfectInfo()
-            #axis[t]=[t*step,t*step]
+            Set("param.txt","transition_R",str(t2*step)) #setting the risky transition
+            stability[t1,t2,0],stability[t1,t2,1] = pi.PerfectInfo() #filling the matrix
     plt.imshow(stability[:,:,0] / stability[:,:,1])
     plt.colorbar(aspect='auto')
     plt.xlabel('transition probability from Safe')
     plt.ylabel('transition probability from Risky')
-    #plt.xscale('log')
-    #plt.gca().invert_xaxis()
-    #plt.gca().set_ylim([0,1])
     plt.legend(['Good','Bad'])
     plt.show()
     return(stability)
@@ -92,7 +91,7 @@ def RatioEffect():
         Set("param.txt","gamma_R",str(gamma_S*r))
         print(gamma_S)
         print(gamma_S*r)
-        stability[r][0],stability[r][1] = PerfectInfo()
+        stability[r][0],stability[r][1] = pi.PerfectInfo()
         axis[r]=[r,r]
     plt.plot(axis[1:],stability[1:])
     plt.xlabel('ratio R/S')
@@ -114,7 +113,7 @@ def GammaEffectMatrix():
         Set("param.txt","gamma_S",str(g1*step))
         for g2 in range(g1,n):
             Set("param.txt","gamma_R",str(g2*step))
-            stability[g1,g2,0],stability[g1,g2,1] = PerfectInfo()
+            stability[g1,g2,0],stability[g1,g2,1] = pi.PerfectInfo()
             print('g1=',g1,'g2=',g2, 'good=', stability[g1,g2,0], 'bad=', stability[g1,g2,1])
     ratio = stability[:,:,0] / stability[:,:,1]
     g = sns.heatmap(ratio, cmap="YlGnBu")
@@ -148,7 +147,7 @@ def Sim_PerfectInfo(T):
     exec(open("param.txt").read(),globals()) #executing parameter file
 
     #First, we run the method until an optimal strategy is found by convergence
-    OptA = PerfectInfo()
+    OptA = pi.PerfectInfo()
     #Storage tables
     environment = np.zeros(T) #to store the sequence of environments
     resulting_a = np.zeros(T) #to store the a chosen by the animal at each time step
@@ -204,7 +203,7 @@ def Sim_Bayesian(T):
     exec(open("param.txt").read(),globals()) #executing parameter file
 
     #First, we run the method until an optimal strategy is found by convergence
-    OptA = Bayesian()
+    OptA = bay.Bayesian()
     #Storage tables
     environment = np.zeros(T) #to store the sequence of environments
     pred_encounter = np.zeros(T) #store predation encounters
@@ -242,37 +241,38 @@ def Sim_Bayesian(T):
                 environment[t]=1
 
     #We simulate the event of meeting a predator, based on the current environment's gamma
+    #Due to approximations made in the nextp function, without stochasticity, unwanted clippings on p=0 and p=N occur. We solve this by forcing p out of 0 if no predator encounter happens, and by forcing it down N when an encounter happens.
         r = randint(1,1000)
         if environment[t] == 0: #envt is safe
             if r<threshold2_S:
-                pred_encounter[t]=1 #predator encounter
+                pred_encounter[t]=1 #predation events storage
                 #Correcting for the absorption by max p = N
                 if resulting_p[t-1] == N :
-                    resulting_p[t] = nextp2(resulting_p[t-1]-1,1)
+                    resulting_p[t] = bay.nextp(resulting_p[t-1]-1,1)
                 else:
-                    resulting_p[t] = nextp2(resulting_p[t-1],1)
+                    resulting_p[t] = bay.nextp(resulting_p[t-1],1)
             else:
-                pred_encounter[t]=0
+                pred_encounter[t]=0 #no encounter
                 #Correcting for the absorption by min p = 0
                 if resulting_p[t-1] == 0 :
-                    resulting_p[t] = nextp2(resulting_p[t-1]+1,0)
+                    resulting_p[t] = bay.nextp(resulting_p[t-1]+1,0)
                 else:
-                    resulting_p[t] = nextp2(resulting_p[t-1],0)
+                    resulting_p[t] = bay.nextp(resulting_p[t-1],0)
         if environment[t] == 1: #envt is risky
             if r<threshold2_R:
-                pred_encounter[t]=1 #predator encounter
+                pred_encounter[t]=1 #predation events storage
                 #Correcting for the absorption by 100
                 if resulting_p[t-1] == N:
-                    resulting_p[t] = nextp2(resulting_p[t-1]-1,1)
+                    resulting_p[t] = bay.nextp(resulting_p[t-1]-1,1)
                 else:
-                    resulting_p[t] = nextp2(resulting_p[t-1],1)
+                    resulting_p[t] = bay.nextp(resulting_p[t-1],1)
             else:
-                pred_encounter[t]=0
+                pred_encounter[t]=0 #no encounter
                 #Correcting for the absorption by min p = 0
                 if resulting_p[t-1] == 0 :
-                    resulting_p[t] = nextp2(resulting_p[t-1]+1,0)
+                    resulting_p[t] = bay.nextp(resulting_p[t-1]+1,0)
                 else:
-                    resulting_p[t] = nextp2(resulting_p[t-1],0)
+                    resulting_p[t] = bay.nextp(resulting_p[t-1],0)
 
         #We simulate the population's optimal a's in this sequence, based on the known optimal strategies they have been selected to follow.
         opt = OptA[int(min(resulting_p[t],100))]
@@ -291,26 +291,25 @@ def Sim_Bayesian(T):
 def Plot_Sim_Bayesian(T):
     'Function that runs a simulation of length T and then plots it adequately'
 
+    #Time table
     t = np.around(np.arange(0,T,1),1)
-
+    #Simulation results
     environment,resulting_a,local_fitness,global_fitness, resulting_p, pred_encounter = Sim_Bayesian(T)
 
-    colors = list(map(lambda x: "yellow" if x else "green", environment)) #green if safe
-
-    env = plt.subplot(511)
-    plt.bar(t,np.ones(T),width=1.0, color=colors)
+    #Plotting
     plt.title('Bayesian Simulation')
-    env.set_ylabel('Environment')
 
-    #environment legend
+    #Plot environment
+    env = plt.subplot(511)
+    #Make colors out of environment list
+    colors = list(map(lambda x: "yellow" if x else "green", environment)) #green if safe, yellow is risky
+    plt.bar(t,np.ones(T),width=1.0, color=colors) #barplot without inter-bar spaces
+    env.set_ylabel('Environment')
+    #Legend (built manually)
     legend_elements = [Patch(facecolor='green',edgecolor='white', label='Safe'), Patch(facecolor='yellow', edgecolor='black',label='Risky')]
     env.legend(handles=legend_elements, loc='upper right')
 
-    # enc = plt.subplot(512,sharex=env)
-    # plt.eventplot(pred_encounter,linewidth=2.0)
-    # enc.set_ylabel('pred_encounter')
-    # plt.axis('off')
-
+    #Plotting chosen antipredator behavior a
     a = plt.subplot(512,sharex=env)
     plt.plot(resulting_a)
     plt.eventplot(t*pred_encounter,lineoffsets = 0.5, linelengths = 1, color = 'gray', linewidth=0.5)
@@ -318,6 +317,7 @@ def Plot_Sim_Bayesian(T):
     plt.ylim(0.5, 0.6)
     a.set_ylabel('Resulting a')
 
+    #Plotting the
     p = plt.subplot(513,sharex=env)
     plt.plot(resulting_p/100)
     plt.eventplot(t*pred_encounter,lineoffsets = 0.5, linelengths = 1, color = 'gray', linewidth=0.5)
@@ -331,7 +331,7 @@ def Plot_Sim_Bayesian(T):
     plt.plot(local_fitness, label='local_fitness')
     plt.eventplot(t*pred_encounter,lineoffsets = 0.5, linelengths = 1, color = 'gray', linewidth=0.5)
     plt.setp(localf.get_xticklabels(), visible=False)
-    plt.ylim(0.8, 1)
+    plt.ylim(0.95, 1)
     localf.set_ylabel('Local Fitness')
 
     plt.show()
