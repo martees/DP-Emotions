@@ -83,7 +83,7 @@ def W(a,V):
 
 
 ## Dynamic programming operator
-def T(V,P_g):
+def T(V,PG):
     H=np.zeros((L+1, 2)) #table of H for all g's and E's
     t=np.zeros((L+1)) #table of t for all g's
     tmaxi=np.zeros((L+1)) #table that keeps track of the max t encountered for each cell
@@ -94,7 +94,7 @@ def T(V,P_g):
     for a in alist:
         #MAIN CALCULATION: put the reproductive value we want to maximize in each cell of t
         H = W(a,V)
-        t = (P_g)*H[0]+(1-(P_g))*H[1]
+        t = (PG)*H[0]+(1-(PG))*H[1]
 
         #Simple version idea [probably doesn't work due to matrix shape inconsistencies]
         #for p in range(N+1):
@@ -120,7 +120,7 @@ def T(V,P_g):
 
 ##Find optimal strategy as the limit of a sequence of functions
 #Here, functions are represented as tables associating a tuple (x,p) to the reproductive value associated with the optimal level of antipredator behavior (relative probability of survival for any long period under a optimal strategy).
-def Gauge(P_g):
+def Gauge(PG):
     #Initial function = associates a level of antipredator behavior a of 1 with all possible p's and E's
     #a=LINE, environment=TUPLE (0=safe, 1=risky)
     newV = np.ones((L+1,2))
@@ -140,7 +140,7 @@ def Gauge(P_g):
         #print("Iteration ", j, ", start time : ", t, sep='', end='')
 
         #MAIN CALCULATION: T
-        newV, A = T(V,P_g) #we recompute A each time (useful only on last iteration, could be worth some work)
+        newV, A = T(V,PG) #we recompute A each time (useful only on last iteration, could be worth some work)
 
         #Normalization
         maxi = np.amax(newV)
@@ -189,7 +189,7 @@ def nextPop(Pop,Opt):
 
 def FindGauge():
     #Initialization of the PG table with an equal chance of being in a safe environment whatever the gauge value
-    newPG = ((np.ones(L+1)) - np.arange(L+1))/(L+1)
+    newPG = ((np.ones(L+1))*(L+1) - np.arange(L+1))/(L+1)
 
     #We reinitialize PG in order to refill it with the new proportions
     #l = np.arange(0,L+1)
