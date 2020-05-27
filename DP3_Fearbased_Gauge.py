@@ -225,10 +225,9 @@ def FindProbaKnowingGauge():
             maxdiff2 = np.amax(np.abs(newPop-Pop)) #new maximum difference
         print("newPop",newPop)
 
-        #We recompute PG accordingly. The probability of being in a safe environment knowing that g = k is taken to be the proportion of individuals in state (S,k).
+        #We recompute PG accordingly. The probability of being in a safe environment knowing that g = k is taken to be the proportion of individuals in state (S,k) over the sum of the individuals in state k.
         newPG = newPop/np.reshape(np.sum(newPop,axis=1),(L+1,1)) #each line = this line / the sum of this line's two cells
         newPG = newPG[:,0] #we're only interested in the probability of the environment being safe
-        newPG = newPG/np.sum(newPG) #normalization
 
         print("newPG",newPG)
 
