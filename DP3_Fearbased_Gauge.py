@@ -10,33 +10,39 @@ from scipy.special import lambertw
 #Executing the parameter file
 exec(open("param.txt").read())
 
+#All the values of the gauge
+gau =np.arange(0,L+1).astype(int)
+
+
 ##Posterior estimate permutation
 #(depends only on p, so we could also compute it only once, could be worth some work)
-def nextg(P_g,d,c,result):
+def nextg(gau,result):
     #Idea for a bias
     #one = np.ones(int(N/2))
     #more = 2*np.ones(int(N/2)+1)
     #c = np.concatenate((one,more),axis=None)
 
     if result==1: #if encounter
-        newPg = np.clip(P_g-d+c, 0,100).astype(int)
+        newPg = np.clip(gau-d+c, 0,L).astype(int)
     if result==0: #if no encounter
-        newPg = np.clip(P_g-d, 0,100).astype(int)
+        newPg = np.clip(gau-d, 0,L).astype(int)
+
     return(newPg)
 
 
 ##Long-term reproductive value of an animal performing level a in environment E
 #W returns a tuple with the reproductive value associated with level a for the given estimate p that conditions are safe, for both safe (H[0]) and risky (H[1]) environments
-def W(V,P_g,d,c,a):
+def W(a,V):
+
     #Gauge updates
-    g_encounter=np.reshape(nextg(P_g,d,c,1), (-1,1))
-    g_no_encounter=np.reshape(nextg(P_g,d,c,0), (-1,1))
+    g_encounter=np.reshape(nextg(gau,1), (L+1,1))
+    g_no_encounter=np.reshape(nextg(gau,0), (L+1,1))
 
     #Column permutations associated to these estimates
     #In order to switch from a time t's estimate to the time t+1, we operate on the whole (a,E) table, by swapping the rowss according to the nextp vector - **a row p's survival expectations are now a row nextp's**.
 
     #Getting the indices
-    row_indices, column_indices = np.ogrid[:V.shape[0], :V.shape[1]]
+    row_indices, column_indices = np.ogrid[0:V.shape[0], 0:V.shape[1]]
 
     #What we would be doing without stochasticity
     #V_Enc = V[row_indices, g_encounter] #changing the rows to those given by g_encounter
@@ -49,6 +55,7 @@ def W(V,P_g,d,c,a):
         #changing the rows to those given by p_no_encounter
     V_NoEnc_Neg = V[np.clip(g_no_encounter-1, 0, L), column_indices]
     V_NoEnc_Pos = V[np.clip(g_no_encounter+1, 0, L), column_indices]
+
 
     #The different equation terms, weighted by the predation probabilities
     safe_encounter1 = gamma_S * Psur(a) * V_Enc_Pos[:,0]
@@ -76,7 +83,7 @@ def W(V,P_g,d,c,a):
 
 
 ## Dynamic programming operator
-def T(V,P_g,d,c):
+def T(V,P_g):
     H=np.zeros((L+1, 2)) #table of H for all g's and E's
     t=np.zeros((L+1)) #table of t for all g's
     tmaxi=np.zeros((L+1)) #table that keeps track of the max t encountered for each cell
@@ -86,8 +93,8 @@ def T(V,P_g,d,c):
     #Loop that looks for the argmax (the maximum t and the associated a)
     for a in alist:
         #MAIN CALCULATION: put the reproductive value we want to maximize in each cell of t
-        H = W(V,P_g,d,c,a)
-        t = (P_g/L)*H[0]+(1-(P_g/L))*H[1] #we divide the gauge by L because it contains the probability*L for easier indexation reasons
+        H = W(a,V)
+        t = (P_g)*H[0]+(1-(P_g))*H[1]
 
         #Simple version idea [probably doesn't work due to matrix shape inconsistencies]
         #for p in range(N+1):
@@ -107,12 +114,13 @@ def T(V,P_g,d,c):
         Hmaxi[:,1] = Hmaxi[:,1]*old + H[1]*new
         amaxi = amaxi*old+a*new  #fmaxi*old keeps the old values of f that we do not want to update, and f*new updates the new values
 
+
     return(Hmaxi, amaxi)
 
 
 ##Find optimal strategy as the limit of a sequence of functions
 #Here, functions are represented as tables associating a tuple (x,p) to the reproductive value associated with the optimal level of antipredator behavior (relative probability of survival for any long period under a optimal strategy).
-def Gauge(P_g,d,c):
+def Gauge(P_g):
     #Initial function = associates a level of antipredator behavior a of 1 with all possible p's and E's
     #a=LINE, environment=TUPLE (0=safe, 1=risky)
     newV = np.ones((L+1,2))
@@ -120,19 +128,19 @@ def Gauge(P_g,d,c):
     #Convergence parameter (to compare to maximum acceptable difference between newV and newV)
     maxdiff=100
 
-    #j=0
+    j=0
     #MAIN LOOP
     while maxdiff>=0.001: #until the sequence converges
         V=deepcopy(newV) #previous newV is stored in V
         newV = np.zeros( (L+1, 2) )
 
         #Process tracking (1)
-        #j += 1 #for nice printing purposes
+        j += 1 #for nice printing purposes
         #t =  process_time()
         #print("Iteration ", j, ", start time : ", t, sep='', end='')
 
-        #MAIN CALCULATION: T2
-        newV, A = T(V,P_g,d,c) #we recompute A each time (useful only on last iteration, could be worth some work)
+        #MAIN CALCULATION: T
+        newV, A = T(V,P_g) #we recompute A each time (useful only on last iteration, could be worth some work)
 
         #Normalization
         maxi = np.amax(newV)
@@ -144,8 +152,9 @@ def Gauge(P_g,d,c):
 
         #Process tracking (2)
         #print(", iteration took ", process_time()-t, "s, maxdiff is : ", maxdiff, sep = '')
-#        if j%10==0:
-#            print(V)
+        #if j%10==0:
+        #    print("V=",V)
+
     return(A)
 
 
@@ -158,17 +167,17 @@ def nextPop(Pop,Opt):
     #Fast and furious version, rolls the whole table at once to align the appropriate cells
     #Pop_enc = [ Pop[g+d-c,0] , Pop[g+d-c,1] ], which is to say the Pop matrix rolled downwards from c-d, with all values Pop[i,:] with i superior to L-d+c being replaced by Pop[L-d+c]
     Pop_enc = np.roll(Pop,c-d,axis=0)
-    Pop_enc[:c-d, :] = np.resize( np.tile(Pop_enc[c-d], c-d) , (c-d, 2))
+    Pop_enc[:(c-d), :] = np.resize( np.tile(Pop_enc[c-d], c-d) , (c-d, 2))
     #Pop_no_enc = [ Pop[g+d,0] , Pop[g+d,1] ], which is to say the Pop matrix rolled upwards from d, with all values Pop[i,:] with i inferior to d-c being replaced by Pop[L-d]
     Pop_no_enc = np.roll(Pop,-d,axis=0)
-    Pop_no_enc[-d:, :] = np.resize( np.tile(Pop_no_enc[L-d], d) , (d, 2))
+    Pop_no_enc[(-d):, :] = np.resize( np.tile(Pop_no_enc[L-d], d) , (d, 2))
     #Convert the functions so that they can be applied to the Opt vectors
     vec_G = np.vectorize(G)
     vec_P = np.vectorize(Psur)
 
     #Updated frequencies for safe (0) and risky (1) environments. Basically the same expression as H, since this is backward optimization again
     Pop[:,0] = vec_G(1-Opt) * ( (1-transition_S)*(gamma_S * vec_P(Opt) * Pop_enc[:,0] + (1-gamma_S) * Pop_no_enc[:,0] ) + transition_S*(gamma_R * vec_P(Opt) * Pop_enc[:,1] + (1-gamma_R) * Pop_no_enc[:,1] ))
-    Pop[:,1] = vec_G(1-Opt) * ( (1-transition_R)*(gamma_R * vec_P(Opt) * Pop_enc[:,0] + (1-gamma_R) * Pop_no_enc[:,0] ) + transition_R*(gamma_S * vec_P(Opt) * Pop_enc[:,1] + (1-gamma_S) * Pop_no_enc[:,1] ))
+    Pop[:,1] = vec_G(1-Opt) * ( (1-transition_R)*(gamma_R * vec_P(Opt) * Pop_enc[:,1] + (1-gamma_R) * Pop_no_enc[:,1] ) + transition_R*(gamma_S * vec_P(Opt) * Pop_enc[:,0] + (1-gamma_S) * Pop_no_enc[:,0] ))
 
     return(Pop)
 
@@ -180,7 +189,7 @@ def nextPop(Pop,Opt):
 
 def FindGauge():
     #Initialization of the PG table with an equal chance of being in a safe environment whatever the gauge value
-    newPG = np.ones(L+1)
+    newPG = ((np.ones(L+1)) - np.arange(L+1))/(L+1)
 
     #We reinitialize PG in order to refill it with the new proportions
     #l = np.arange(0,L+1)
@@ -200,27 +209,29 @@ def FindGauge():
 
         PG=deepcopy(newPG) #previous newPG is stored in PG
 
-        Opt = Gauge(PG,d,c) #we recompute the optimal strategy based on previous PG
+        Opt = Gauge(PG) #we recompute the optimal strategy based on previous PG
         #Opt = np.reshape(Opt, (L+1,1))
-        newPop = np.ones((L+1, 2))/(2*L) #we initialize the population
+
+        newPop = np.ones((L+1, 2))/(2*L) #we initialize the population frequencies in each state
 
         #Convergence parameter for Pop
         maxdiff2=100
-
-        print(Opt)
-        print(newPop)
+        print("Opt",Opt)
+        print("newPop",newPop)
         while maxdiff2>=0.000001: #until the Pop sequence converges
             Pop=deepcopy(newPop) #previous newPop is stored in Pop
-            newPop = np.ones((L+1, 2))/(2*L) #initialization with equal frequencies in every state/environment
             newPop = nextPop(newPop,Opt) #nextPop operates on newPop to compute the next time step
             newPop = newPop/np.sum(newPop) #normalization
             maxdiff2 = np.amax(np.abs(newPop-Pop)) #new maximum difference
-        print(newPop)
+        print("newPop",newPop)
 
         #We recompute PG accordingly. The probability of being in a safe environment knowing that g = k is taken to be the proportion of individuals in state (S,k).
-        newPG = newPop/np.reshape(np.sum(newPop,axis=1),(L+1,1))
-        newPG = newPG[:,0]
+        newPG = newPop/np.reshape(np.sum(newPop,axis=1),(L+1,1)) #each line = this line / the sum of this line's two cells
+        newPG = newPG[:,0] #we're only interested in the probability of the environment being safe
         newPG = newPG/np.sum(newPG) #normalization
+
+        print("newPG",newPG)
+
         maxdiff1 = np.amax(np.abs(newPG-PG)) #new maximum difference
 
         #Process tracking (2)
@@ -231,17 +242,16 @@ def FindGauge():
     return(newPG)
 
 
-
-#GAUGE = FindGauge()
+GAUGE = FindGauge()
 
 def Dummy():
     Pop = np.ones((L+1, 2))/(2*L) #we initialize the population
-    PG = np.ones(L+1)
-    Opt = Gauge(PG,d,c)
-    l = np.reshape(np.arange(L+1), (L+1,1))
+    l = np.arange(L+1)
+    PG = l
+    l = np.reshape(l, (L+1,1))
     l = np.concatenate((l,l),axis = -1)
     V = l/(np.sum(l))
-    t = T(V,PG,d,c)
+    t = Gauge(PG)
 
     print(t)
 
