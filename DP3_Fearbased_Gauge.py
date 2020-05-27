@@ -187,7 +187,7 @@ def nextPop(Pop,Opt):
 #Using g, we build a probability table PG, which gives the animal the estimated probability that the environment is safe given that their fear is at level g. To find this PG table, we study, again, the convergence of a series of tables PG. Note that PG depends on the optimal strategy.
 #To evaluate PG we thus perform forward iterations, to evaluate the survival probability of agents using a given PG table.
 
-def FindGauge():
+def FindProbaKnowingGauge():
     #Initialization of the PG table with an equal chance of being in a safe environment whatever the gauge value
     newPG = ((np.ones(L+1))*(L+1) - np.arange(L+1))/(L+1)
 
@@ -242,7 +242,7 @@ def FindGauge():
     return(newPG)
 
 
-GAUGE = FindGauge()
+GAUGE = FindProbaKnowingGauge()
 
 def Dummy():
     Pop = np.ones((L+1, 2))/(2*L) #we initialize the population
