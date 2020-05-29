@@ -16,18 +16,19 @@ gau =np.arange(0,L+1).astype(int)
 
 ##Posterior estimate permutation
 #(depends only on p, so we could also compute it only once, could be worth some work)
-def nextg(gau,result):
+def nextg(gauge,result):
+
     #Idea for a bias
     #one = np.ones(int(N/2))
     #more = 2*np.ones(int(N/2)+1)
     #c = np.concatenate((one,more),axis=None)
 
     if result==1: #if encounter
-        newPg = np.clip(gau-d+c, 0,L).astype(int)
+        newg = np.clip(gauge-d+c, 0,L).astype(int)
     if result==0: #if no encounter
-        newPg = np.clip(gau-d, 0,L).astype(int)
+        newg = np.clip(gauge-d, 0,L).astype(int)
 
-    return(newPg)
+    return(newg)
 
 
 ##Long-term reproductive value of an animal performing level a in environment E
@@ -71,7 +72,7 @@ def W(a,V):
     risky_encounter = 1/2*risky_encounter1 + 1/2*risky_encounter2
 
     risky_no_encounter1 = (1-gamma_R) * V_NoEnc_Pos[:,1]
-    risky_no_encounter2 = (1-gamma_R) * V_NoEnc_Pos[:,1]
+    risky_no_encounter2 = (1-gamma_R) * V_NoEnc_Neg[:,1]
     risky_no_encounter = 1/2*risky_no_encounter1 + 1/2*risky_no_encounter2
 
     #MAIN CALCULATION
@@ -94,7 +95,7 @@ def T(V,PG):
     for a in alist:
         #MAIN CALCULATION: put the reproductive value we want to maximize in each cell of t
         H = W(a,V)
-        t = (PG)*H[0]+(1-(PG))*H[1]
+        t = (PG)*H[1]+(1-(PG))*H[0]
 
         #Simple version idea [probably doesn't work due to matrix shape inconsistencies]
         #for p in range(N+1):
@@ -121,6 +122,8 @@ def T(V,PG):
 ##Find optimal strategy as the limit of a sequence of functions
 #Here, functions are represented as tables associating a tuple (x,p) to the reproductive value associated with the optimal level of antipredator behavior (relative probability of survival for any long period under a optimal strategy).
 def Gauge(PG):
+    exec(open("param.txt").read(),globals()) #executing parameter file
+
     #Initial function = associates a level of antipredator behavior a of 1 with all possible p's and E's
     #a=LINE, environment=TUPLE (0=safe, 1=risky)
     newV = np.ones((L+1,2))
@@ -217,12 +220,15 @@ def FindProbaKnowingGauge():
         #Convergence parameter for Pop
         maxdiff2=100
         print("Opt",Opt)
-        print("newPop",newPop)
+        i = 0
         while maxdiff2>=0.000001: #until the Pop sequence converges
             Pop=deepcopy(newPop) #previous newPop is stored in Pop
             newPop = nextPop(newPop,Opt) #nextPop operates on newPop to compute the next time step
             newPop = newPop/np.sum(newPop) #normalization
             maxdiff2 = np.amax(np.abs(newPop-Pop)) #new maximum difference
+            #if i%10==0:
+            #    print("Pop ",i," = ", newPop)
+            i+=1
         print("newPop",newPop)
 
         #We recompute PG accordingly. The probability of being in a safe environment knowing that g = k is taken to be the proportion of individuals in state (S,k) over the sum of the individuals in state k.
@@ -241,18 +247,23 @@ def FindProbaKnowingGauge():
     return(newPG)
 
 
-GAUGE = FindProbaKnowingGauge()
+#GAUGE = FindProbaKnowingGauge()
 
 def Dummy():
-    Pop = np.ones((L+1, 2))/(2*L) #we initialize the population
-    l = np.arange(L+1)
-    PG = l
-    l = np.reshape(l, (L+1,1))
-    l = np.concatenate((l,l),axis = -1)
-    V = l/(np.sum(l))
-    t = Gauge(PG)
+    # Pop = np.ones((L+1, 2))/(2*L) #we initialize the population
+    # l = np.arange(L+1)
+    # PG = l
+    # l = np.reshape(l, (L+1,1))
+    # l = np.concatenate((l,l),axis = -1)
+    # V = l/(np.sum(l))
+    # t = Gauge(PG)
 
-    print(t)
+    PG = ((np.ones(L+1))*(L+1) - np.arange(L+1))/(L+1)
+    PG = (np.arange(L+1))/(L+1)
+
+    A = Gauge(PG)
+
+    return(A)
 
 
 
