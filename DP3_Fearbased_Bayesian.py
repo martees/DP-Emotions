@@ -29,9 +29,7 @@ def nextp(p,encounter):
 
 ##Long-term reproductive value of an animal performing level a in environment E
 #W returns a tuple with the reproductive value associated with level a for the given estimate p that conditions are safe, for both safe (H[0]) and risky (H[1]) environments
-def W2(a,V):
-    #Prior update
-    p = updated_prior
+def W(a,p,V):
 
     #Posterior estimates
     p_encounter=np.reshape(nextp(p,1), (-1,1))
@@ -48,7 +46,7 @@ def W2(a,V):
     #V_NoEnc = V[row_indices, p_no_encounter]  #same for p_no_encounter
 
     #What we do with stochasticity (for convergence purposes)
-        #changing the rows to those given by p_encounter
+        #changing the rows to the given by p_encounter
     V_Enc_Neg = V[np.clip(p_encounter-1, 0, N), column_indices]
     V_Enc_Pos = V[np.clip(p_encounter+1, 0, N), column_indices]
         #changing the rows to those given by p_no_encounter
@@ -83,7 +81,7 @@ def W2(a,V):
 
 
 ## Dynamic programming operator
-def T2(V):
+def T(V):
     H=np.zeros((N+1, 2)) #table of H for all p's and E's
     t=np.zeros((N+1)) #table of t for all p's
     tmaxi=np.zeros((N+1)) #table that keeps track of the max t encountered for each cell
@@ -92,10 +90,12 @@ def T2(V):
 
     #Loop that looks for the argmax (the maximum t and the associated a)
     for a in alist:
-        #MAIN CALCULATION: put the reproductive value we want to maximize in each cell of t
-        H = W2(a,V)
-        t = (p_all/N)*H[0]+(1-(p_all/N))*H[1] #we divide the probability p by N because it contains the probability*N for easier indexation reasons
 
+        #MAIN CALCULATION: put the reproductive value we want to maximize in each cell of t
+        #Prior update
+        p = updated_prior
+        H = W(a,p,V)
+        t = (p/N)*H[0]+(1-(p/N))*H[1] #we divide the probability p by N because it contains the probability*N for easier indexation reasons
         #Simple version [DOES NOT WORK NEEDS CORRECTION]
         #for p in range(N+1):
         #    if t[0][p] > tmaxi[p]:#if the reproductive value associated with (p,a) is > tmax
@@ -120,7 +120,6 @@ def T2(V):
 ##Find optimal strategy as the limit of a sequence of functions
 #Here, functions are represented as tables associating a tuple (x,p) to the reproductive value associated with the optimal level of antipredator behavior (relative probability of survival for any long period under a optimal strategy).
 def Bayesian():
-
     exec(open("param.txt").read(),globals()) #executing parameter file
 
     #Initial function = associates a level of antipredator behavior a of 1 with all possible p's and E's
@@ -146,7 +145,7 @@ def Bayesian():
 #        V = V[np.reshape(updated_prior, (N+1,1)), column_indices]
 
         #MAIN CALCULATION: T2
-        newV, A = T2(V) #we recompute A each time (useful only on last iteration, could be worth some work)
+        newV, A = T(V) #we recompute A each time (useful only on last iteration, could be worth some work)
 
         #Normalization
         maxi = np.amax(newV)
