@@ -75,14 +75,24 @@ def TimeEffectMatrix():
         for t2 in range(1,n):
             Set("param.txt","transition_R",str(t2*step)) #setting the risky transition
             stability[t1,t2,0],stability[t1,t2,1] = pi.PerfectInfo() #filling the matrix
-    plt.imshow(stability[:,:,0] / stability[:,:,1])
-    plt.colorbar(aspect='auto')
-    plt.xlabel('transition probability from Safe')
-    plt.ylabel('transition probability from Risky')
-    plt.legend(['Good','Bad'])
+    ratio = stability[:,:,0] / stability[:,:,1]
+    g = sns.heatmap(ratio, cmap="YlGnBu")
+    plt.xlabel('transition_R')
+    plt.ylabel('transition_S')
+    # We take all ticks
+    g.set_xticks(np.arange(len(ratio)))
+    g.set_yticks(np.arange(len(ratio[0])))
+    # We set half of them invisible
+    plt.setp(g.get_xticklabels()[::2], visible=False)
+    plt.setp(g.get_yticklabels()[::2], visible=False)
+    # ... and label them with the respective list entries
+    g.set_xticklabels(np.around(np.arange(0,1,0.01),2))
+    g.set_yticklabels(np.around(np.arange(0,1,0.01),2))
+    plt.gca().invert_yaxis()
     plt.show()
     return(stability)
 #stability=TimeEffectMatrix()
+
 
 ## Effect of ratio of riskiness between the two envts on optimal perfectly informed strategy
 def RatioEffect():
@@ -136,7 +146,7 @@ def GammaEffectMatrix():
     return(stability)
 #stability=GammaEffectMatrix()
 
-##Effect of c and d on gauge results [USELESS FOR NOW - does not work with Gauge() as it is]
+##Effect of c and d on gauge optimal strategy [USELESS FOR NOW - does not work with Gauge() as it is]
 def c_d_Matrix():
     step=10 #step with which the gammas vary until 1
     n = int(L/step) #number of transition rates to test for
@@ -168,7 +178,11 @@ def c_d_Matrix():
     plt.show()
     return(stability)
 
-stab = c_d_Matrix()
+#stab = c_d_Matrix()
+
+## Optimal strategies comparison
+
+#a = np.genfromtxt('OptPINa10000.csv', delimiter=',')
 
 ##Immediate fitness
 def F(a,pred):
@@ -177,8 +191,50 @@ def F(a,pred):
     if pred==1:
         return(Psur(a)*G(1-a))
 
+##Environment + predatione events generation function
+def EnvPredGen(T):
+    'Function that generates a random sequence of environmental states + pred events based on current parameters'
+    environment = np.zeros(T)
+    rand = 1000
+    threshold1_S = int(rand*transition_S) #threshold below which the environment switches => risky
+    threshold1_R = int(rand*transition_R) #threshold below which the environment switches => safe
+    threshold2_S = int(rand*gamma_S) #threshold below which there's a pred encounter in safe envt
+    threshold2_R = int(rand*gamma_R) #threshold below which there's a pred encounter in risky envt
+    for t in range(T):
+    #We create a random sequence of environments, for T time steps, and depending on the chosen transition parameters
+        r = randint(1,1000)
+        if t==0:
+            if r<500:
+                environment[t]=0
+            else:
+                environment[t]=1
+        elif environment[t-1] == 0:
+            if r<threshold1_S:
+                environment[t]=1
+            else:
+                environment[t]=0
+        elif environment[t-1] == 1:
+            if r<threshold1_R:
+                environment[t]=0
+            else:
+                environment[t]=1
+
+        r = randint(1,1000)
+        if environment[t] == 0: #envt is safe
+            if r<threshold2_S:
+                pred_encounter[t]=1 #predation events storage
+            else:
+                pred_encounter[t]=0 #no encounter
+        if environment[t] == 1: #envt is risky
+            if r<threshold2_R:
+                pred_encounter[t]=1 #predation events storage
+            else:
+                pred_encounter[t]=0 #no encounter
+    return(environment,pred_encounter)
+
+
 ## Simulation for perfectly informed agents
-def Sim_PerfectInfo(T,IsEnv=False,environment=0):
+def Sim_PerfectInfo(T,IsEnv=False,environment=0,pred_encounter=0):
     'Returns the accumulated fitness of an agent following a perfectly informed strategy during a period of length T generated using current paremeters (stochastically).'
     exec(open("param.txt").read(),globals()) #executing parameter file
 
@@ -188,9 +244,9 @@ def Sim_PerfectInfo(T,IsEnv=False,environment=0):
     resulting_a = np.zeros(T) #to store the a chosen by the animal at each time step
     local_fitness = np.zeros(T) #to store the resulting fitness of the animal's behavior
     global_fitness = 0 #to store the global resulting fitness
-    pred_encounter = np.zeros(T) #store predation encounters
-    if IsEnv == False:
+    if IsEnv==False:
         environment = np.zeros(T) #to store the sequence of environments
+        pred_encounter = np.zeros(T) #store predation encounters
 
     rand = 1000 #max random number that can be chosen later on. /!\ will not allow to model any lambda inferior to 1/rand
     threshold1_S = int(rand*transition_S) #threshold below which the environment switches => risky
@@ -217,18 +273,18 @@ def Sim_PerfectInfo(T,IsEnv=False,environment=0):
                 else:
                     environment[t]=1
     #We simulate the event of meeting a predator, based on the current environment's gamma
-        r = randint(1,1000)
+            r = randint(1,1000)
 
-        if environment[t] == 0: #envt is safe
-            if r<threshold2_S:
-                pred_encounter[t]=1 #predation events storage
-            else:
-                pred_encounter[t]=0 #no encounter
-        if environment[t] == 1: #envt is risky
-            if r<threshold2_R:
-                pred_encounter[t]=1 #predation events storage
-            else:
-                pred_encounter[t]=0 #no encounter
+            if environment[t] == 0: #envt is safe
+                if r<threshold2_S:
+                    pred_encounter[t]=1 #predation events storage
+                else:
+                    pred_encounter[t]=0 #no encounter
+            if environment[t] == 1: #envt is risky
+                if r<threshold2_R:
+                    pred_encounter[t]=1 #predation events storage
+                else:
+                    pred_encounter[t]=0 #no encounter
 
         #We simulate the population's optimal a's in this sequence, based on the known optimal strategies they have been selected to follow.
         opt = OptA[int(environment[t])] #0=Safe, 1=Risky
@@ -241,7 +297,10 @@ def Sim_PerfectInfo(T,IsEnv=False,environment=0):
         local_fitness[t]=fit
         global_fitness+=fit
 
-    return(environment,resulting_a,local_fitness,global_fitness)
+    if IsEnv == True:
+        return(resulting_a,local_fitness,global_fitness)
+    else:
+        return(environment,resulting_a,local_fitness,global_fitness, pred_encounter)
 
 def Plot_Sim_PerfectInfo(T):
     S_PI=Sim_PerfectInfo(T)
@@ -252,16 +311,16 @@ def Plot_Sim_PerfectInfo(T):
     plt.show()
 
 ## Simulation for bayesian agents
-def Sim_Bayesian(T,IsEnv=False,environment=0):
+def Sim_Bayesian(T,IsEnv=False,environment=0,pred_encounter=0):
     'Returns the accumulated fitness of an agent following a bayesian strategy during a period of length T generated using current paremeters (stochastically).'
     exec(open("param.txt").read(),globals()) #executing parameter file
 
     #First, we run the method until an optimal strategy is found by convergence
     OptA = bay.Bayesian()
     #Storage tables
-    pred_encounter = np.zeros(T) #store predation encounters
     if IsEnv==False:
         environment = np.zeros(T) #to store the sequence of environments
+        pred_encounter = np.zeros(T) #store predation encounters
 
     resulting_a = np.zeros(T) #to store the a chosen by the animal at each time step
     resulting_p = np.zeros(T) #to store the resulting p at each time step
@@ -297,38 +356,31 @@ def Sim_Bayesian(T,IsEnv=False,environment=0):
                     environment[t]=1
 
     #We simulate the event of meeting a predator, based on the current environment's gamma
-    #Due to approximations made in the nextp function, without stochasticity, unwanted clippings on p=0 and p=N occur. We solve this by forcing p out of 0 if no predator encounter happens, and by forcing it down N when an encounter happens.
-        r = randint(1,1000)
-        if environment[t] == 0: #envt is safe
-            if r<threshold2_S:
-                pred_encounter[t]=1 #predation events storage
-                #Correcting for the absorption by max p = N
-                if resulting_p[t-1] == N :
-                    resulting_p[t] = bay.nextp(resulting_p[t-1]-1,1)
+            r = randint(1,1000)
+            if environment[t] == 0: #envt is safe
+                if r<threshold2_S:
+                    pred_encounter[t]=1 #predation event storage
                 else:
-                    resulting_p[t] = bay.nextp(resulting_p[t-1],1)
+                    pred_encounter[t]=0 #no encounter
+            if environment[t] == 1: #envt is risky
+                if r<threshold2_R:
+                    pred_encounter[t]=1 #predation event storage
+                else:
+                    pred_encounter[t]=0 #no encounter
+
+        #Due to approximations made in the nextp function, without stochasticity, unwanted clippings on p=0 and p=N occur. We solve this by forcing p out of 0 if no predator encounter happens, and by forcing it down N when an encounter happens.
+        if pred_encounter[t]==1: #encounter
+            #Correcting for the absorption by max p = N
+            if resulting_p[t-1] == N :
+                resulting_p[t] = bay.nextp(resulting_p[t-1]-1,1)
             else:
-                pred_encounter[t]=0 #no encounter
-                #Correcting for the absorption by min p = 0
-                if resulting_p[t-1] == 0 :
-                    resulting_p[t] = bay.nextp(resulting_p[t-1]+1,0)
-                else:
-                    resulting_p[t] = bay.nextp(resulting_p[t-1],0)
-        if environment[t] == 1: #envt is risky
-            if r<threshold2_R:
-                pred_encounter[t]=1 #predation events storage
-                #Correcting for the absorption by 100
-                if resulting_p[t-1] == N:
-                    resulting_p[t] = bay.nextp(resulting_p[t-1]-1,1)
-                else:
-                    resulting_p[t] = bay.nextp(resulting_p[t-1],1)
+                resulting_p[t] = bay.nextp(resulting_p[t-1],1)
+        if pred_encounter[t]==0: #no encounter
+            #Correcting for the absorption by min p = 0
+            if resulting_p[t-1] == 0 :
+                resulting_p[t] = bay.nextp(resulting_p[t-1]+1,0)
             else:
-                pred_encounter[t]=0 #no encounter
-                #Correcting for the absorption by min p = 0
-                if resulting_p[t-1] == 0 :
-                    resulting_p[t] = bay.nextp(resulting_p[t-1]+1,0)
-                else:
-                    resulting_p[t] = bay.nextp(resulting_p[t-1],0)
+                resulting_p[t] = bay.nextp(resulting_p[t-1],0)
 
         #We simulate the population's optimal a's in this sequence, based on the known optimal strategies they have been selected to follow.
         opt = OptA[int(min(resulting_p[t],100))]
@@ -341,8 +393,10 @@ def Sim_Bayesian(T,IsEnv=False,environment=0):
         local_fitness[t]=fit
         global_fitness+=fit
 
-    return(environment,resulting_a,local_fitness,global_fitness, resulting_p, pred_encounter)
-
+    if IsEnv == True:
+        return(resulting_a,local_fitness,global_fitness, resulting_p)
+    else:
+        return(environment,resulting_a,local_fitness,global_fitness, resulting_p, pred_encounter)
 
 def Plot_Sim_Bayesian(T):
     'Function that runs a simulation of length T and then plots it adequately'
@@ -396,19 +450,18 @@ def Plot_Sim_Bayesian(T):
 #Plot_Sim_Bayesian(1000)
 
 ## Simulation for gauge-using agents
-def Sim_Gauge(T,IsEnv=False,environment=0):
+def Sim_Gauge(T,IsEnv=False,environment=0,pred_encounter=0, IsOpt=False, OptA=0):
     'Returns simulation of an agent following a gauge-based strategy during a period of length T generated using current paremeters (stochastically).'
 
     exec(open("param.txt").read(),globals()) #executing parameter file
 
     #First, we run the method until an optimal strategy is found by convergence
-    OptA = gau.Dummy()
+    if IsOpt == False:
+        OptA = gau.Dummy()
     #Storage tables
-    pred_encounter = np.zeros(T) #store predation encounters
     if IsEnv==False:
         environment = np.zeros(T) #to store the sequence of environments
-
-
+        pred_encounter = np.zeros(T) #store predation encounters
     resulting_a = np.zeros(T) #to store the a chosen by the animal at each time step
     resulting_g = np.zeros(T) #to store the resulting p at each time step
     resulting_g[-1]= L/2 #initialization (see below, called at t=0)
@@ -416,11 +469,12 @@ def Sim_Gauge(T,IsEnv=False,environment=0):
     local_fitness = np.zeros(T) #to store the resulting fitness of the animal's behavior
     global_fitness = 0 #to store the global resulting fitness
 
-    rand = 1000 #max random number that can be chosen later on. /!\ will not allow to model any lambda/gamma inferior to 1/rand
-    threshold1_S = int(rand*transition_S) #threshold below which the environment switches => risky
-    threshold1_R = int(rand*transition_R) #threshold below which the environment switches => safe
-    threshold2_S = int(rand*gamma_S) #threshold below which there's a pred encounter in safe envt
-    threshold2_R = int(rand*gamma_R) #threshold below which there's a pred encounter in risky envt
+    if IsEnv==False:
+        rand = 1000 #max random number that can be chosen later on. /!\ will not allow to model any lambda/gamma inferior to 1/rand
+        threshold1_S = int(rand*transition_S) #threshold below which the environment switches => risky
+        threshold1_R = int(rand*transition_R) #threshold below which the environment switches => safe
+        threshold2_S = int(rand*gamma_S) #threshold below which there's a pred encounter in safe envt
+        threshold2_R = int(rand*gamma_R) #threshold below which there's a pred encounter in risky envt
     for t in range(T):
     #We create a random sequence of environments, for T time steps, and depending on the chosen transition parameters
         if IsEnv==False:
@@ -442,22 +496,28 @@ def Sim_Gauge(T,IsEnv=False,environment=0):
                     environment[t]=1
 
     #We simulate the event of meeting a predator, based on the current environment's gamma
-        r = randint(1,1000)
+            r = randint(1,1000)
 
-        if environment[t] == 0: #envt is safe
-            if r<threshold2_S:
-                pred_encounter[t]=1 #predation events storage
-                resulting_g[t] = gau.nextg(resulting_g[t-1],1)
-            else:
-                pred_encounter[t]=0 #no encounter
-                resulting_g[t] = gau.nextg(resulting_g[t-1],0)
+            if environment[t] == 0: #envt is safe
+                if r<threshold2_S:
+                    pred_encounter[t]=1 #predation events storage
+                    resulting_g[t] = gau.nextg(resulting_g[t-1],1)
+                else:
+                    pred_encounter[t]=0 #no encounter
+                    resulting_g[t] = gau.nextg(resulting_g[t-1],0)
 
-        if environment[t] == 1: #envt is risky
-            if r<threshold2_R:
-                pred_encounter[t]=1 #predation events storage
+            if environment[t] == 1: #envt is risky
+                if r<threshold2_R:
+                    pred_encounter[t]=1 #predation events storage
+                    resulting_g[t] = gau.nextg(resulting_g[t-1],1)
+                else:
+                    pred_encounter[t]=0 #no encounter
+                    resulting_g[t] = gau.nextg(resulting_g[t-1],0)
+
+    #Resulting gauge update
+        if pred_encounter[t]==1: #predation event
                 resulting_g[t] = gau.nextg(resulting_g[t-1],1)
-            else:
-                pred_encounter[t]=0 #no encounter
+        if pred_encounter[t]==0: #no predation
                 resulting_g[t] = gau.nextg(resulting_g[t-1],0)
 
         #We simulate the population's optimal a's in this sequence, based on the known optimal strategies they have been selected to follow.
@@ -470,8 +530,10 @@ def Sim_Gauge(T,IsEnv=False,environment=0):
             fit = F(opt,1)
         local_fitness[t]=fit
         global_fitness+=fit
-
-    return(environment,resulting_a,local_fitness,global_fitness, resulting_g, pred_encounter)
+    if IsEnv == True:
+        return(resulting_a,local_fitness,global_fitness, resulting_g)
+    else:
+        return(environment,resulting_a,local_fitness,global_fitness, resulting_g, pred_encounter)
 
 def Plot_Sim_Gauge(T):
     'Function that runs a simulation of length T and then plots it adequately'
@@ -521,7 +583,60 @@ def Plot_Sim_Gauge(T):
 
     plt.show()
 
-Plot_Sim_Gauge(500)
+#Plot_Sim_Gauge(500)
+
+##Effect of c and d on gauge performance
+def c_d_Perf_Matrix():
+
+    #average length of stable environmental period
+    t1_s = int(1/transition_S)
+    t1_r = int(1/transition_R)
+    #average time between two predator encounters in each environment
+    t2_s = int(1/gamma_S)
+    t2_r = int(1/gamma_R)
+
+    #Environment is composed of average-lengthed stable periods
+    environment = np.concatenate((np.zeros(t1_s),np.ones(t1_r),np.zeros(t1_s),np.ones(t1_r)))
+    #Predator encounters are averagely spaced throughout all periods
+    safe_pred_enc = np.zeros(t1_s)
+    safe_pred_enc[::t2_s]=1
+    risky_pred_enc = np.zeros(t1_r)
+    safe_pred_enc[::t2_r]=1
+    pred_encounter = np.concatenate((safe_pred_enc,risky_pred_enc,safe_pred_enc,risky_pred_enc))
+
+    step=20 #step with which the c and d vary until L
+    n = int(L/step) #total number of values to test for in each variable
+    Opt = np.zeros((n,n,L+1))
+    fit = np.zeros((n,n))
+    axis=np.zeros((n,2))
+    for inc in range(1,n):
+        Set("param.txt","c",str(inc*step))
+        fincor dec in range():
+            Set("param.txt","d",str(dec*step))
+            Opt[inc,dec] = gau.Dummy()
+            print('c=',inc*step,'d=',dec*step, 'a=', Opt[inc,dec,int(L/2)])
+            #Simulation results
+            fit[inc,dec] = Sim_Gauge(len(environment),IsEnv=True,environment=environment, pred_encounter=pred_encounter, IsOpt=True, OptA=Opt[inc,dec])[2]
+
+    x = y = np.arange(0, L, step)
+    # here are the x,y and respective z values
+    X, Y = np.meshgrid(x, y)
+    Z = np.array(fit)
+
+    # create the figure, add a 3d axis, set the viewing angle
+    fig = plt.figure()
+    ax = plt.axes(projection='3d')
+    ax.view_init(45,60)
+
+    # here we create the surface plot, but pass V through a colormap
+    # to create a different color for each patch
+    ax.plot_surface(X, Y, Z, facecolors=cm.Oranges(Z))
+
+    plt.show()
+    return(stability)
+
+stab = c_d_Perf_Matrix()
+
 
 ## Comparison
 
