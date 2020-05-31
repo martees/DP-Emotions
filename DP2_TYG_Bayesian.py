@@ -158,7 +158,7 @@ def nextp(P,f,result):
 
 #Initial function = associates a foraging intensity of 1 with all possible (x,p) except for (0,p)=0
 #x=LINE, p=COL, environment=TUPLE (0=good, 1=bad)
-U = np.zeros( (s+1,N+1, 2) ) +1
+U = np.ones( (s+1,N+1, 2) )
 U[0] = 0
 
 #Convergence parameter (to compare to maximum acceptable difference between V and U)
