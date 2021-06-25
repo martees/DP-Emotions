@@ -67,5 +67,5 @@ Pyzo 4.7.3 (https://pyzo.org/)
 
 ## References 
 
-* Alasdair Houston and John M. McNamara 
-* TYG
+* Higginson, Andrew & Fawcett, Tim & Houston, Alasdair & Mcnamara, John. (2018). Trust your gut: using physiological states as a source of information is almost as effective as optimal Bayesian learning. Proceedings of the Royal Society B: Biological Sciences. 285. 20172411. 10.1098/rspb.2017.2411. 
+* A. I. Houston, J. M. McNamara, Models of Adaptive Behavior - An Approach Based On State, Cambridge University Press, 1999
