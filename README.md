@@ -60,7 +60,7 @@ Pyzo 4.7.3 (https://pyzo.org/)
 
 ## Authors
 
-* **Alice Al-Asmar** - *Most of the coding*
+* **Alid Al-Asmar** - *Most of the coding*
 * **François-Xavier Dechaume-Moncharmont** - *Theoretical development*
 * **Orégane Desrentes** - *Fast-and-furious-ing of the codes that required it*
 
